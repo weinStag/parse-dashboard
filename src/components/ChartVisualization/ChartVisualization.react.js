@@ -165,30 +165,93 @@ const ChartVisualization = ({
       const labels = [];
       const dataPoints = [];
 
-      // Se múltiplas colunas, criar rótulos baseados nos nomes das colunas
+      // Se múltiplas colunas, criar datasets separados para cada coluna
       if (colEnd > colStart) {
+        // CORREÇÃO: Em vez de calcular médias, mostrar todos os valores
+        const datasets = [];
+
         for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
           const columnName = order[colIndex]?.name;
-          if (!columnName) {
-            continue;
-          }
+          if (!columnName) continue;
 
-          labels.push(columnName);
+          // Coletar todos os valores desta coluna
+          const columnValues = [];
+          const columnLabels = [];
 
-          // Calcular média dos valores desta coluna
-          let sum = 0;
-          let count = 0;
           for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
             const value = data[rowIndex]?.attributes[columnName];
             if (typeof value === 'number' && !isNaN(value)) {
-              sum += value;
-              count++;
+              columnValues.push(value);
+              columnLabels.push(`Row ${rowIndex + 1}`);
             }
           }
-          dataPoints.push(count > 0 ? sum / count : 0);
+
+          if (columnValues.length > 0) {
+            datasets.push({
+              label: columnName,
+              data: columnValues,
+              backgroundColor: `hsla(${(colIndex - colStart) * 60}, 70%, 60%, 0.8)`,
+              borderColor: `hsl(${(colIndex - colStart) * 60}, 70%, 50%)`,
+              borderWidth: 2,
+              borderRadius: chartType === 'bar' ? 4 : 0,
+              tension: chartType === 'line' ? 0.4 : 0
+            });
+          }
         }
+
+        // Usar os labels da primeira coluna (todas devem ter o mesmo número de linhas)
+        for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
+          labels.push(`Row ${rowIndex + 1}`);
+        }
+
+        return {
+          type: 'numberSeries',
+          data: {
+            labels,
+            datasets
+          },
+          options: {
+            // ...manter as opções existentes...
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+              intersect: false,
+            },
+            plugins: {
+              title: {
+                display: true,
+                text: 'Selected Data Visualization',
+                font: { size: 16, weight: 'bold' },
+                color: '#333'
+              },
+              legend: {
+                display: datasets.length > 1 // Mostrar legenda se múltiplas colunas
+              },
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                titleColor: '#fff',
+                bodyColor: '#fff',
+                borderColor: '#169cee',
+                borderWidth: 1
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Value', font: { size: 14, weight: 'bold' }, color: '#555' },
+                grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                ticks: { color: '#666' }
+              },
+              x: {
+                title: { display: true, text: 'Categories', font: { size: 14, weight: 'bold' }, color: '#555' },
+                grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                ticks: { color: '#666' }
+              }
+            }
+          }
+        };
       } else {
-        // Única coluna: usar índices das linhas como rótulos
+        // Única coluna: usar índices das linhas como rótulos (MANTER COMO ESTÁ)
         const columnName = order[colStart]?.name;
         if (columnName) {
           for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
@@ -197,106 +260,71 @@ const ChartVisualization = ({
             dataPoints.push(typeof value === 'number' && !isNaN(value) ? value : 0);
           }
         }
-      }
 
-      if (labels.length === 0 || dataPoints.length === 0) {
-        return null;
-      }
+        if (labels.length === 0 || dataPoints.length === 0) {
+          return null;
+        }
 
-      return {
-        type: 'numberSeries',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Selected Values',
-            data: dataPoints,
-            backgroundColor: chartType === 'bar'
-              ? dataPoints.map((_, index) => `hsla(${index * 360 / dataPoints.length}, 70%, 60%, 0.8)`)
-              : 'rgba(22, 156, 238, 0.7)',
-            borderColor: chartType === 'bar'
-              ? dataPoints.map((_, index) => `hsl(${index * 360 / dataPoints.length}, 70%, 50%)`)
-              : 'rgba(22, 156, 238, 1)',
-            borderWidth: 2,
-            borderRadius: chartType === 'bar' ? 4 : 0,
-            tension: chartType === 'line' ? 0.4 : 0
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: {
-            intersect: false,
+        return {
+          type: 'numberSeries',
+          data: {
+            labels,
+            datasets: [{
+              label: 'Selected Values',
+              data: dataPoints,
+              backgroundColor: chartType === 'bar'
+                ? dataPoints.map((_, index) => `hsla(${index * 360 / dataPoints.length}, 70%, 60%, 0.8)`)
+                : 'rgba(22, 156, 238, 0.7)',
+              borderColor: chartType === 'bar'
+                ? dataPoints.map((_, index) => `hsl(${index * 360 / dataPoints.length}, 70%, 50%)`)
+                : 'rgba(22, 156, 238, 1)',
+              borderWidth: 2,
+              borderRadius: chartType === 'bar' ? 4 : 0,
+              tension: chartType === 'line' ? 0.4 : 0
+            }]
           },
-          plugins: {
-            title: {
-              display: true,
-              text: 'Selected Data Visualization',
-              font: {
-                size: 16,
-                weight: 'bold'
-              },
-              color: '#333'
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+              intersect: false,
             },
-            legend: {
-              display: false
-            },
-            tooltip: {
-              backgroundColor: 'rgba(0, 0, 0, 0.8)',
-              titleColor: '#fff',
-              bodyColor: '#fff',
-              borderColor: '#169cee',
-              borderWidth: 1
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
+            plugins: {
               title: {
                 display: true,
-                text: 'Value',
-                font: {
-                  size: 14,
-                  weight: 'bold'
-                },
-                color: '#555'
+                text: 'Selected Data Visualization',
+                font: { size: 16, weight: 'bold' },
+                color: '#333'
               },
-              grid: {
-                color: 'rgba(0, 0, 0, 0.1)'
+              legend: {
+                display: false // Uma coluna não precisa de legenda
               },
-              ticks: {
-                color: '#666'
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                titleColor: '#fff',
+                bodyColor: '#fff',
+                borderColor: '#169cee',
+                borderWidth: 1
               }
             },
-            x: {
-              title: {
-                display: true,
-                text: 'Categories',
-                font: {
-                  size: 14,
-                  weight: 'bold'
-                },
-                color: '#555'
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Value', font: { size: 14, weight: 'bold' }, color: '#555' },
+                grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                ticks: { color: '#666' }
               },
-              grid: {
-                color: 'rgba(0, 0, 0, 0.1)'
-              },
-              ticks: {
-                color: '#666'
+              x: {
+                title: { display: true, text: 'Categories', font: { size: 14, weight: 'bold' }, color: '#555' },
+                grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                ticks: { color: '#666' }
               }
             }
           }
-        }
-      };
+        };
+      }
     }
   }, [selectedData, selectedCells, data, order]);
-
-  if (!chartData) {
-    return (
-      <div className={styles.noData}>
-        <p>Select multiple cells to visualize data</p>
-      </div>
-    );
-  }
 
   const renderChart = () => {
     if (chartData.type === 'timeSeries') {
