@@ -15,6 +15,7 @@ import { ResizableBox } from 'react-resizable';
 import styles from './Databrowser.scss';
 
 import AggregationPanel from '../../../components/AggregationPanel/AggregationPanel';
+import ChartVisualization from '../../../components/ChartVisualization/ChartVisualization.react';
 
 /**
  * DataBrowser renders the browser toolbar and data table
@@ -49,6 +50,8 @@ export default class DataBrowser extends React.Component {
       isResizing: false,
       maxWidth: window.innerWidth - 300,
       showAggregatedData: true,
+      isChartPanelVisible: false,
+      chartPanelWidth: 400,
     };
 
     this.handleResizeDiv = this.handleResizeDiv.bind(this);
@@ -67,6 +70,7 @@ export default class DataBrowser extends React.Component {
     this.setSelectedObjectId = this.setSelectedObjectId.bind(this);
     this.setContextMenu = this.setContextMenu.bind(this);
     this.handleCellClick = this.handleCellClick.bind(this);
+    this.toggleChartPanelVisibility = this.toggleChartPanelVisibility.bind(this);
     this.saveOrderTimeout = null;
   }
 
@@ -208,6 +212,12 @@ export default class DataBrowser extends React.Component {
         this.props.app.applicationId
       );
     }
+  }
+
+  toggleChartPanelVisibility() {
+    this.setState(prevState => ({
+      isChartPanelVisible: !prevState.isChartPanelVisible
+    }));
   }
 
   getAllClassesSchema(schema) {
@@ -610,9 +620,7 @@ export default class DataBrowser extends React.Component {
         firstSelectedCell: clickedCellKey,
       });
     }
-  }
-
-  render() {
+  }  render() {
     const {
       className,
       count,
@@ -682,6 +690,31 @@ export default class DataBrowser extends React.Component {
               </div>
             </ResizableBox>
           )}
+          {this.state.isChartPanelVisible && this.state.selectedData.length > 1 && (
+            <ResizableBox
+              width={this.state.chartPanelWidth}
+              height={Infinity}
+              minConstraints={[400, Infinity]}
+              maxConstraints={[800, Infinity]}
+              onResizeStart={() => this.setState({ isResizing: true })}
+              onResizeStop={(event, { size }) => this.setState({
+                isResizing: false,
+                chartPanelWidth: size.width
+              })}
+              onResize={(event, { size }) => this.setState({ chartPanelWidth: size.width })}
+              resizeHandles={['w']}
+              className={styles.chartPanel}
+            >
+              <div className={styles.chartPanelContainer}>
+                <ChartVisualization
+                  selectedData={this.state.selectedData}
+                  selectedCells={this.state.selectedCells}
+                  data={this.props.data}
+                  order={this.state.order}
+                />
+              </div>
+            </ResizableBox>
+          )}
         </div>
 
         <BrowserToolbar
@@ -711,6 +744,8 @@ export default class DataBrowser extends React.Component {
           allClassesSchema={this.state.allClassesSchema}
           togglePanel={this.togglePanelVisibility}
           isPanelVisible={this.state.isPanelVisible}
+          toggleChartPanel={this.toggleChartPanelVisibility}
+          isChartPanelVisible={this.state.isChartPanelVisible}
           appId={this.props.app.applicationId}
           appName={this.props.appName}
           {...other}
