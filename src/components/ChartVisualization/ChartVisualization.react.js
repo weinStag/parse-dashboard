@@ -1,0 +1,532 @@
+/*
+ * Copyright (c) 2016-present, Parse, LLC
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the LICENSE file in
+ * the root directory of this source tree.
+ */
+import React, { useMemo, useState } from 'react';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  TimeScale,
+} from 'chart.js';
+import { Bar, Line, Pie } from 'react-chartjs-2';
+import 'chartjs-adapter-date-fns';
+import styles from './ChartVisualization.scss';
+
+// Registrar os componentes necessários do Chart.js
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  TimeScale
+);
+
+const ChartVisualization = ({
+  selectedData,
+  selectedCells,
+  data,
+  order
+}) => {
+  const [chartType, setChartType] = useState('bar');
+
+  // Processar dados selecionados para determinar o tipo de visualização
+  const chartData = useMemo(() => {
+    if (!selectedData || selectedData.length === 0 || !selectedCells) {
+      return null;
+    }
+
+    const { rowStart, rowEnd, colStart, colEnd } = selectedCells;
+
+    // Verificar se temos dados válidos
+    if (rowStart === -1 || colStart === -1) {
+      return null;
+    }
+
+    // Determinar se é time series de forma mais rigorosa
+    // Time series só se: primeira coluna é data E temos múltiplas colunas E a primeira coluna É REALMENTE data
+    const firstColumnName = order[colStart]?.name;
+    let isTimeSeries = false;
+
+    // Só considerar time series se temos múltiplas colunas E a primeira coluna é explicitamente data/datetime
+    if (colEnd > colStart && firstColumnName) {
+      // Verificar se o nome da coluna sugere data
+      const isDateColumn = /^(date|time|created|updated|when|at)$/i.test(firstColumnName) ||
+                          firstColumnName.toLowerCase().includes('date') ||
+                          firstColumnName.toLowerCase().includes('time');
+
+      if (isDateColumn) {
+        // Verificar se a primeira coluna contém realmente datas válidas
+        let dateCount = 0;
+        const totalRows = Math.min(3, rowEnd - rowStart + 1); // Verificar até 3 linhas
+
+        for (let rowIndex = rowStart; rowIndex < rowStart + totalRows; rowIndex++) {
+          const value = data[rowIndex]?.attributes[firstColumnName];
+          if (value instanceof Date ||
+              (typeof value === 'string' && !isNaN(Date.parse(value)) && new Date(value).getFullYear() > 1900)) {
+            dateCount++;
+          }
+        }
+
+        isTimeSeries = dateCount >= totalRows * 0.8; // 80% devem ser datas válidas
+      }
+    }
+
+    // Forçar number series se não temos evidências claras de time series
+    isTimeSeries = false; // TEMPORÁRIO: forçar number series para debug
+
+    if (isTimeSeries && colEnd > colStart) {
+      // Time Series: primeira coluna é data, outras são números
+      const datasets = [];
+
+      // Criar um dataset para cada coluna numérica
+      for (let colIndex = colStart + 1; colIndex <= colEnd; colIndex++) {
+        const columnName = order[colIndex]?.name;
+        const dataPoints = [];
+
+        for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
+          const timeValue = data[rowIndex]?.attributes[firstColumnName];
+          const numericValue = data[rowIndex]?.attributes[columnName];
+
+          if (timeValue && typeof numericValue === 'number' && !isNaN(numericValue)) {
+            dataPoints.push({
+              x: new Date(timeValue),
+              y: numericValue
+            });
+          }
+        }
+
+        if (dataPoints.length > 0) {
+          datasets.push({
+            label: columnName,
+            data: dataPoints,
+            borderColor: `hsl(${(colIndex - colStart) * 60}, 70%, 50%)`,
+            backgroundColor: `hsla(${(colIndex - colStart) * 60}, 70%, 50%, 0.1)`,
+            tension: 0.1
+          });
+        }
+      }
+
+      return {
+        type: 'timeSeries',
+        datasets,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                displayFormats: {
+                  day: 'MMM dd',
+                  hour: 'HH:mm'
+                }
+              },
+              title: {
+                display: true,
+                text: firstColumnName
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Value'
+              }
+            }
+          },
+          plugins: {
+            title: {
+              display: true,
+              text: 'Time Series Visualization'
+            },
+            legend: {
+              display: datasets.length > 1
+            }
+          }
+        }
+      };
+    } else {
+      // Number Series: apenas valores numéricos
+      const labels = [];
+      const dataPoints = [];
+
+      // Se múltiplas colunas, criar rótulos baseados nos nomes das colunas
+      if (colEnd > colStart) {
+        for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
+          const columnName = order[colIndex]?.name;
+          if (!columnName) {
+            continue;
+          }
+
+          labels.push(columnName);
+
+          // Calcular média dos valores desta coluna
+          let sum = 0;
+          let count = 0;
+          for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
+            const value = data[rowIndex]?.attributes[columnName];
+            if (typeof value === 'number' && !isNaN(value)) {
+              sum += value;
+              count++;
+            }
+          }
+          dataPoints.push(count > 0 ? sum / count : 0);
+        }
+      } else {
+        // Única coluna: usar índices das linhas como rótulos
+        const columnName = order[colStart]?.name;
+        if (columnName) {
+          for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
+            labels.push(`Row ${rowIndex + 1}`);
+            const value = data[rowIndex]?.attributes[columnName];
+            dataPoints.push(typeof value === 'number' && !isNaN(value) ? value : 0);
+          }
+        }
+      }
+
+      if (labels.length === 0 || dataPoints.length === 0) {
+        return null;
+      }
+
+      return {
+        type: 'numberSeries',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Selected Values',
+            data: dataPoints,
+            backgroundColor: chartType === 'bar'
+              ? dataPoints.map((_, index) => `hsla(${index * 360 / dataPoints.length}, 70%, 60%, 0.8)`)
+              : 'rgba(22, 156, 238, 0.7)',
+            borderColor: chartType === 'bar'
+              ? dataPoints.map((_, index) => `hsl(${index * 360 / dataPoints.length}, 70%, 50%)`)
+              : 'rgba(22, 156, 238, 1)',
+            borderWidth: 2,
+            borderRadius: chartType === 'bar' ? 4 : 0,
+            tension: chartType === 'line' ? 0.4 : 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            intersect: false,
+          },
+          plugins: {
+            title: {
+              display: true,
+              text: 'Selected Data Visualization',
+              font: {
+                size: 16,
+                weight: 'bold'
+              },
+              color: '#333'
+            },
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              borderColor: '#169cee',
+              borderWidth: 1
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Value',
+                font: {
+                  size: 14,
+                  weight: 'bold'
+                },
+                color: '#555'
+              },
+              grid: {
+                color: 'rgba(0, 0, 0, 0.1)'
+              },
+              ticks: {
+                color: '#666'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Categories',
+                font: {
+                  size: 14,
+                  weight: 'bold'
+                },
+                color: '#555'
+              },
+              grid: {
+                color: 'rgba(0, 0, 0, 0.1)'
+              },
+              ticks: {
+                color: '#666'
+              }
+            }
+          }
+        }
+      };
+    }
+  }, [selectedData, selectedCells, data, order]);
+
+  if (!chartData) {
+    return (
+      <div className={styles.noData}>
+        <p>Select multiple cells to visualize data</p>
+      </div>
+    );
+  }
+
+  const renderChart = () => {
+    if (chartData.type === 'timeSeries') {
+      return (
+        <Line
+          data={{ datasets: chartData.datasets }}
+          options={chartData.options}
+        />
+      );
+    } else {
+      // Para number series, suportar bar, line e pie charts
+      if (chartType === 'pie') {
+        // Para pie chart, verificar se temos dados válidos
+        const values = chartData.data.datasets[0].data;
+        const labels = chartData.data.labels;
+
+        // Filtrar valores válidos (> 0) para pie chart
+        const validData = [];
+        const validLabels = [];
+        const validColors = [];
+
+        values.forEach((value, index) => {
+          if (value && value > 0) {
+            validData.push(value);
+            validLabels.push(labels[index]);
+            validColors.push(`hsl(${index * 360 / values.length}, 75%, 65%)`);
+          }
+        });
+
+        if (validData.length === 0) {
+          return <div className={styles.noData}><p>No positive values for pie chart</p></div>;
+        }
+
+        const pieData = {
+          labels: validLabels,
+          datasets: [{
+            label: 'Values',
+            data: validData,
+            backgroundColor: validColors,
+            borderColor: validColors.map(color => color.replace('60%', '40%')),
+            borderWidth: 1
+          }]
+        };
+
+        const pieOptions = {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: true,
+              text: 'Data Distribution',
+              font: {
+                size: 16,
+                weight: 'bold'
+              },
+              color: '#333'
+            },
+            legend: {
+              display: true,
+              position: 'right',
+              labels: {
+                padding: 20,
+                usePointStyle: true,
+                font: {
+                  size: 12
+                }
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              borderColor: '#169cee',
+              borderWidth: 1,
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || '';
+                  const value = context.parsed;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = Math.round((value / total) * 100);
+                  return `${label}: ${value} (${percentage}%)`;
+                }
+              }
+            }
+          }
+        };
+
+        return (
+          <Pie
+            data={pieData}
+            options={pieOptions}
+          />
+        );
+      } else {
+        // Bar ou Line Chart
+        const ChartComponent = chartType === 'bar' ? Bar : Line;
+
+        // Melhorar as opções para dimensionamento correto
+        const enhancedOptions = {
+          ...chartData.options,
+          responsive: true,
+          maintainAspectRatio: false,
+          aspectRatio: 1.6,
+          layout: {
+            padding: {
+              top: 20,
+              right: 20,
+              bottom: 20,
+              left: 20
+            }
+          },
+          elements: {
+            bar: {
+              borderRadius: 4,
+              borderWidth: 0
+            },
+            line: {
+              borderWidth: 3,
+              tension: 0.4
+            },
+            point: {
+              radius: 5,
+              borderWidth: 2,
+              hoverRadius: 7
+            }
+          },
+          plugins: {
+            ...chartData.options.plugins,
+            legend: {
+              display: false
+            },
+            title: {
+              display: true,
+              text: 'Selected Data Visualization',
+              position: 'top',
+              align: 'center',
+              font: {
+                size: 16,
+                weight: 'bold'
+              },
+              color: '#333',
+              padding: {
+                top: 10,
+                bottom: 20
+              }
+            },
+            tooltip: {
+              enabled: true,
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              borderColor: '#169cee',
+              borderWidth: 1,
+              cornerRadius: 6,
+              displayColors: true
+            }
+          },
+          scales: {
+            ...chartData.options.scales,
+            x: {
+              ...chartData.options.scales.x,
+              grid: {
+                display: true,
+                color: 'rgba(0, 0, 0, 0.1)'
+              },
+              ticks: {
+                maxRotation: 45,
+                minRotation: 0,
+                font: {
+                  size: 12
+                }
+              }
+            },
+            y: {
+              ...chartData.options.scales.y,
+              grid: {
+                display: true,
+                color: 'rgba(0, 0, 0, 0.1)'
+              },
+              ticks: {
+                font: {
+                  size: 12
+                }
+              }
+            }
+          }
+        };
+
+        return (
+          <ChartComponent
+            data={chartData.data}
+            options={enhancedOptions}
+          />
+        );
+      }
+    }
+  };
+
+  return (
+    <div className={styles.chartVisualization}>
+      <div className={styles.chartHeader}>
+        <h3 className={styles.chartTitle}>
+          📊 Data Visualization ({selectedData.length} values selected)
+        </h3>
+      </div>
+      <div className={styles.chartControls}>
+        {chartData.type === 'numberSeries' && (
+          <div className={styles.chartTypeSelector}>
+            <label>Chart Type:</label>
+            <select
+              value={chartType}
+              onChange={(e) => setChartType(e.target.value)}
+              className={styles.select}
+            >
+              <option value="bar">Bar Chart</option>
+              <option value="line">Line Chart</option>
+              <option value="pie">Pie Chart</option>
+            </select>
+          </div>
+        )}
+        <div className={styles.chartInfo}>
+          {chartData.type === 'timeSeries' ? 'Time Series' : 'Number Series'} |
+          {selectedData.length} values selected
+        </div>
+      </div>
+      <div className={styles.chartContainer}>
+        {renderChart()}
+      </div>
+    </div>
+  );
+};
+
+export default ChartVisualization;
