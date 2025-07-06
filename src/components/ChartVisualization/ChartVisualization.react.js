@@ -48,15 +48,23 @@ const ChartVisualization = ({
 
   // Processar dados selecionados para determinar o tipo de visualização
   const chartData = useMemo(() => {
-    if (!selectedData || selectedData.length === 0 || !selectedCells) {
+    // Validação inicial mais rigorosa
+    if (!selectedData || selectedData.length === 0 || !selectedCells || !data || !Array.isArray(data)) {
       return null;
     }
 
     const { rowStart, rowEnd, colStart, colEnd } = selectedCells;
 
-    // Verificar se temos dados válidos
-    if (rowStart === -1 || colStart === -1) {
+    // Verificar se temos dados válidos e se os índices são válidos
+    if (rowStart === -1 || colStart === -1 || rowEnd >= data.length || rowStart < 0) {
       return null;
+    }
+
+    // Verificar se todos os índices de linha são válidos
+    for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
+      if (!data[rowIndex] || !data[rowIndex].attributes) {
+        return null; // Dados inconsistentes, abortar
+      }
     }
 
     // Determinar se é time series de forma mais rigorosa
@@ -86,7 +94,11 @@ const ChartVisualization = ({
           const totalRows = Math.min(3, rowEnd - rowStart + 1); // Verificar até 3 linhas
 
           for (let rowIndex = rowStart; rowIndex < rowStart + totalRows; rowIndex++) {
-            const value = data[rowIndex]?.attributes[columnName];
+            // Verificar se o índice é válido antes de acessar
+            if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
+              continue;
+            }
+            const value = data[rowIndex].attributes[columnName];
             if (value instanceof Date ||
                 (typeof value === 'string' && !isNaN(Date.parse(value)) && new Date(value).getFullYear() > 1900)) {
               dateCount++;
@@ -123,8 +135,12 @@ const ChartVisualization = ({
         const dataPoints = [];
 
         for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-          const timeValue = data[rowIndex]?.attributes[dateColumnName];
-          const numericValue = data[rowIndex]?.attributes[columnName];
+          // Verificar se o índice é válido
+          if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
+            continue;
+          }
+          const timeValue = data[rowIndex].attributes[dateColumnName];
+          const numericValue = data[rowIndex].attributes[columnName];
 
           if (timeValue && typeof numericValue === 'number' && !isNaN(numericValue)) {
             dataPoints.push({
@@ -205,7 +221,11 @@ const ChartVisualization = ({
           const columnLabels = [];
 
           for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-            const value = data[rowIndex]?.attributes[columnName];
+            // Verificar se o índice é válido
+            if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
+              continue;
+            }
+            const value = data[rowIndex].attributes[columnName];
             if (typeof value === 'number' && !isNaN(value)) {
               columnValues.push(value);
               columnLabels.push(`Row ${rowIndex + 1}`);
@@ -281,8 +301,12 @@ const ChartVisualization = ({
         const columnName = order[colStart]?.name;
         if (columnName) {
           for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
+            // Verificar se o índice é válido
+            if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
+              continue;
+            }
             labels.push(`Row ${rowIndex + 1}`);
-            const value = data[rowIndex]?.attributes[columnName];
+            const value = data[rowIndex].attributes[columnName];
             dataPoints.push(typeof value === 'number' && !isNaN(value) ? value : 0);
           }
         }
@@ -353,6 +377,11 @@ const ChartVisualization = ({
   }, [selectedData, selectedCells, data, order, columns]);
 
   const renderChart = () => {
+    // Safety check to prevent crashes
+    if (!chartData) {
+      return null;
+    }
+
     if (chartData.type === 'timeSeries') {
       return (
         <Line
@@ -548,6 +577,18 @@ const ChartVisualization = ({
       }
     }
   };
+
+  // Add null check to prevent runtime errors
+  if (!chartData) {
+    return (
+      <div className={styles.chartVisualization}>
+        <div className={styles.noData}>
+          <p>No valid data selected for charting.</p>
+          <p>Please select numeric or date columns to visualize.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.chartVisualization}>

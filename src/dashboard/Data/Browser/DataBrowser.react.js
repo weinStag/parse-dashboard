@@ -153,6 +153,17 @@ export default class DataBrowser extends React.Component {
         this.props.setErrorAggregatedData({});
       }
     }
+
+    // Fechar painel de gráfico se os dados mudaram (como quando ordena a tabela)
+    if (prevProps.data !== this.props.data && this.state.isChartPanelVisible) {
+      this.setState({
+        isChartPanelVisible: false,
+        selectedCells: { list: new Set(), rowStart: -1, rowEnd: -1, colStart: -1, colEnd: -1 },
+        selectedData: [],
+        numericSelectedData: [],
+        hasDateInSelection: false,
+      });
+    }
   }
 
   handleResizeStart() {
