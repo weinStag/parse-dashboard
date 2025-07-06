@@ -38,7 +38,7 @@ const Stats = ({ data, classwiseCloudFunctions, className, appId, appName }) => 
     },
     {
       type: 'p99',
-      label: 'P99',
+      label: 'P999',
       getValue: data => {
         const sorted = data.sort((a, b) => a - b);
         return sorted[Math.floor(sorted.length * 0.99)];
@@ -125,6 +125,7 @@ const Stats = ({ data, classwiseCloudFunctions, className, appId, appName }) => 
 const Toolbar = props => {
   const action = useNavigationType();
   const navigate = useNavigate();
+
   let backButton;
   if (props.relation || (props.filters && props.filters.size && action !== NavigationType.Pop)) {
     backButton = (
@@ -146,13 +147,25 @@ const Toolbar = props => {
         </div>
       </div>
       {props?.selectedData?.length ? (
-        <Stats
-          data={props.selectedData}
-          classwiseCloudFunctions={props.classwiseCloudFunctions}
-          className={props.className}
-          appId={props.appId}
-          appName={props.appName}
-        />
+        <div className={styles.dataControls}>
+          <Stats
+            data={props.selectedData}
+            classwiseCloudFunctions={props.classwiseCloudFunctions}
+            className={props.className}
+            appId={props.appId}
+            appName={props.appName}
+          />
+          {props?.selectedData?.length > 1 && (
+            <button
+              onClick={props.toggleChartPanel}
+              className={styles.chartButton}
+              title={props.isChartPanelVisible ? 'Hide Data Visualization' : 'Show Data Visualization'}
+            >
+              <Icon width={16} height={16} fill="currentColor" name="analytics-outline" />
+              <span>{props.isChartPanelVisible ? 'Hide Chart' : 'Show Chart B'}</span>
+            </button>
+          )}
+        </div>
       ) : null}
       <div className={styles.actions}>{props.children}</div>
       {props.classwiseCloudFunctions &&
