@@ -727,15 +727,15 @@ export default class DataBrowser extends React.Component {
           )}
           {this.state.isChartPanelVisible && this.state.selectedData.length > 1 && (
             <DraggableResizablePanel
-              width={this.state.chartPanelWidth}
-              height={500}
+              width={650}
+              height={550}
               minWidth={400}
-              maxWidth={900}
+              maxWidth={1100}
               minHeight={300}
-              maxHeight={700}
+              maxHeight={800}
               title="Data Visualization"
               onClose={() => this.setState({ isChartPanelVisible: false })}
-              initialPosition={{ x: 200, y: 150 }}
+              initialPosition={{ x: 320, y: 320 }}
             >
               <ChartVisualization
                 selectedData={this.state.selectedData}
