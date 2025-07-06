@@ -430,7 +430,8 @@ const BrowserToolbar = ({
       )}
       {enableSecurityDialog ? <div className={styles.toolbarSeparator} /> : <noscript />}
       <BrowserMenu setCurrent={setCurrent} title="Script" icon="gear-solid">
-        <MenuItem
+        {[<MenuItem
+          key="script"
           disabled={selectionLength === 0}
           text={
             selectionLength === 1 && !selection['*']
@@ -438,14 +439,14 @@ const BrowserToolbar = ({
               : `Run script on ${selectionLength} selected rows...`
           }
           onClick={() => onExecuteScriptRows(selection)}
-        />
+        />]}
       </BrowserMenu>
       <div className={styles.toolbarSeparator} />
       {menu}
       {editCloneRows && editCloneRows.length > 0 && <div className={styles.toolbarSeparator} />}
       {editCloneRows && editCloneRows.length > 0 && (
         <BrowserMenu title="Clone" icon="clone-icon">
-          <MenuItem text={'Cancel all pending rows'} onClick={onCancelPendingEditRows} />
+          {[<MenuItem key="cancel" text={'Cancel all pending rows'} onClick={onCancelPendingEditRows} />]}
         </BrowserMenu>
       )}
     </Toolbar>
