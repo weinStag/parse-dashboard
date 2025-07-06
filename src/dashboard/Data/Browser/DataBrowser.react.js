@@ -16,6 +16,7 @@ import styles from './Databrowser.scss';
 
 import AggregationPanel from '../../../components/AggregationPanel/AggregationPanel';
 import ChartVisualization from '../../../components/ChartVisualization/ChartVisualization.react';
+import DraggableResizablePanel from '../../../components/DraggableResizablePanel/DraggableResizablePanel.react';
 
 /**
  * DataBrowser renders the browser toolbar and data table
@@ -725,30 +726,25 @@ export default class DataBrowser extends React.Component {
             </ResizableBox>
           )}
           {this.state.isChartPanelVisible && this.state.selectedData.length > 1 && (
-            <ResizableBox
+            <DraggableResizablePanel
               width={this.state.chartPanelWidth}
-              height={Infinity}
-              minConstraints={[400, Infinity]}
-              maxConstraints={[800, Infinity]}
-              onResizeStart={() => this.setState({ isResizing: true })}
-              onResizeStop={(event, { size }) => this.setState({
-                isResizing: false,
-                chartPanelWidth: size.width
-              })}
-              onResize={(event, { size }) => this.setState({ chartPanelWidth: size.width })}
-              resizeHandles={['w']}
-              className={styles.chartPanel}
+              height={500}
+              minWidth={400}
+              maxWidth={900}
+              minHeight={300}
+              maxHeight={700}
+              title="Data Visualization"
+              onClose={() => this.setState({ isChartPanelVisible: false })}
+              initialPosition={{ x: 200, y: 150 }}
             >
-              <div className={styles.chartPanelContainer}>
-                <ChartVisualization
-                  selectedData={this.state.selectedData}
-                  selectedCells={this.state.selectedCells}
-                  data={this.props.data}
-                  order={this.state.order}
-                  columns={this.props.columns}
-                />
-              </div>
-            </ResizableBox>
+              <ChartVisualization
+                selectedData={this.state.selectedData}
+                selectedCells={this.state.selectedCells}
+                data={this.props.data}
+                order={this.state.order}
+                columns={this.props.columns}
+              />
+            </DraggableResizablePanel>
           )}
         </div>
 

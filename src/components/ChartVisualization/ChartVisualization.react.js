@@ -551,11 +551,6 @@ const ChartVisualization = ({
 
   return (
     <div className={styles.chartVisualization}>
-      <div className={styles.chartHeader}>
-        <h3 className={styles.chartTitle}>
-          📊 Data Visualization ({selectedData.length} values selected)
-        </h3>
-      </div>
       <div className={styles.chartControls}>
         {chartData.type === 'numberSeries' && (
           <div className={styles.chartTypeSelector}>
