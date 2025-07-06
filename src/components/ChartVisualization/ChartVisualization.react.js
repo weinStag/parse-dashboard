@@ -41,7 +41,8 @@ const ChartVisualization = ({
   selectedData,
   selectedCells,
   data,
-  order
+  order,
+  columns
 }) => {
   const [chartType, setChartType] = useState('bar');
 
@@ -64,9 +65,11 @@ const ChartVisualization = ({
     let isTimeSeries = false;
 
     // Só considerar time series se temos múltiplas colunas E a primeira coluna é explicitamente data/datetime
-    if (colEnd > colStart && firstColumnName) {
-      // Verificar se o nome da coluna sugere data
-      const isDateColumn = /^(date|time|created|updated|when|at)$/i.test(firstColumnName) ||
+    if (colEnd > colStart && firstColumnName && columns) {
+      // Verificar primeiro o tipo da coluna no schema
+      const firstColumnType = columns[firstColumnName]?.type;
+      const isDateColumn = firstColumnType === 'Date' ||
+                          /^(date|time|created|updated|when|at)$/i.test(firstColumnName) ||
                           firstColumnName.toLowerCase().includes('date') ||
                           firstColumnName.toLowerCase().includes('time');
 
@@ -83,12 +86,9 @@ const ChartVisualization = ({
           }
         }
 
-        isTimeSeries = dateCount >= totalRows * 0.8; // 80% devem ser datas válidas
+        isTimeSeries = dateCount >= totalRows * 0.6; // 60% devem ser datas válidas (mais permissivo)
       }
     }
-
-    // Forçar number series se não temos evidências claras de time series
-    isTimeSeries = false; // TEMPORÁRIO: forçar number series para debug
 
     if (isTimeSeries && colEnd > colStart) {
       // Time Series: primeira coluna é data, outras são números
@@ -324,7 +324,7 @@ const ChartVisualization = ({
         };
       }
     }
-  }, [selectedData, selectedCells, data, order]);
+  }, [selectedData, selectedCells, data, order, columns]);
 
   const renderChart = () => {
     if (chartData.type === 'timeSeries') {

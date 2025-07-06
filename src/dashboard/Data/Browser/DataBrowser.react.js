@@ -571,7 +571,9 @@ export default class DataBrowser extends React.Component {
       let validColumns = true;
       for (let i = colStart; i <= colEnd; i++) {
         const name = this.state.order[i].name;
-        if (this.props.columns[name].type !== 'Number') {
+        const columnType = this.props.columns[name].type;
+        // Permitir Number, Date, String (que pode conter números) para visualização
+        if (columnType !== 'Number' && columnType !== 'Date' && columnType !== 'String') {
           validColumns = false;
           break;
         }
@@ -587,8 +589,23 @@ export default class DataBrowser extends React.Component {
         for (let y = colStart; y <= colEnd; y++) {
           if (rowData) {
             const value = rowData.attributes[this.state.order[y].name];
-            if (typeof value === 'number' && !isNaN(value)) {
-              selectedData.push(rowData.attributes[this.state.order[y].name]);
+            const columnType = this.props.columns[this.state.order[y].name].type;
+
+            // Incluir diferentes tipos de dados para visualização
+            if (columnType === 'Number' && typeof value === 'number' && !isNaN(value)) {
+              selectedData.push(value);
+            } else if (columnType === 'Date' && value instanceof Date) {
+              selectedData.push(value);
+            } else if (columnType === 'Date' && typeof value === 'string' && !isNaN(Date.parse(value))) {
+              selectedData.push(new Date(value));
+            } else if (columnType === 'String' && typeof value === 'string') {
+              // Para strings, incluir apenas se puderem ser interpretadas como números
+              const numValue = parseFloat(value);
+              if (!isNaN(numValue)) {
+                selectedData.push(numValue);
+              } else {
+                selectedData.push(value); // Incluir strings para labels em time series
+              }
             }
           }
           newSelection.add(`${x}-${y}`);
@@ -711,6 +728,7 @@ export default class DataBrowser extends React.Component {
                   selectedCells={this.state.selectedCells}
                   data={this.props.data}
                   order={this.state.order}
+                  columns={this.props.columns}
                 />
               </div>
             </ResizableBox>
