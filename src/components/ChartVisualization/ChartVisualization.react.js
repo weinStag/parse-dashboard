@@ -60,47 +60,70 @@ const ChartVisualization = ({
     }
 
     // Determinar se é time series de forma mais rigorosa
-    // Time series só se: primeira coluna é data E temos múltiplas colunas E a primeira coluna É REALMENTE data
-    const firstColumnName = order[colStart]?.name;
+    // Time series se: temos múltiplas colunas E pelo menos uma coluna é data
     let isTimeSeries = false;
+    let dateColumnName = null;
+    let dateColumnIndex = -1;
 
-    // Só considerar time series se temos múltiplas colunas E a primeira coluna é explicitamente data/datetime
-    if (colEnd > colStart && firstColumnName && columns) {
-      // Verificar primeiro o tipo da coluna no schema
-      const firstColumnType = columns[firstColumnName]?.type;
-      const isDateColumn = firstColumnType === 'Date' ||
-                          /^(date|time|created|updated|when|at)$/i.test(firstColumnName) ||
-                          firstColumnName.toLowerCase().includes('date') ||
-                          firstColumnName.toLowerCase().includes('time');
-
-      if (isDateColumn) {
-        // Verificar se a primeira coluna contém realmente datas válidas
-        let dateCount = 0;
-        const totalRows = Math.min(3, rowEnd - rowStart + 1); // Verificar até 3 linhas
-
-        for (let rowIndex = rowStart; rowIndex < rowStart + totalRows; rowIndex++) {
-          const value = data[rowIndex]?.attributes[firstColumnName];
-          if (value instanceof Date ||
-              (typeof value === 'string' && !isNaN(Date.parse(value)) && new Date(value).getFullYear() > 1900)) {
-            dateCount++;
-          }
+    // Procurar por qualquer coluna de data na seleção (não apenas a primeira)
+    if (colEnd > colStart && columns) {
+      for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
+        const columnName = order[colIndex]?.name;
+        if (!columnName) {
+          continue;
         }
 
-        isTimeSeries = dateCount >= totalRows * 0.6; // 60% devem ser datas válidas (mais permissivo)
+        // Verificar o tipo da coluna no schema
+        const columnType = columns[columnName]?.type;
+        const isDateColumn = columnType === 'Date' ||
+                            /^(date|time|created|updated|when|at)$/i.test(columnName) ||
+                            columnName.toLowerCase().includes('date') ||
+                            columnName.toLowerCase().includes('time');
+
+        if (isDateColumn) {
+          // Verificar se a coluna contém realmente datas válidas
+          let dateCount = 0;
+          const totalRows = Math.min(3, rowEnd - rowStart + 1); // Verificar até 3 linhas
+
+          for (let rowIndex = rowStart; rowIndex < rowStart + totalRows; rowIndex++) {
+            const value = data[rowIndex]?.attributes[columnName];
+            if (value instanceof Date ||
+                (typeof value === 'string' && !isNaN(Date.parse(value)) && new Date(value).getFullYear() > 1900)) {
+              dateCount++;
+            }
+          }
+
+          if (dateCount >= totalRows * 0.6) { // 60% devem ser datas válidas
+            isTimeSeries = true;
+            dateColumnName = columnName;
+            dateColumnIndex = colIndex;
+            break; // Encontrou uma coluna de data válida
+          }
+        }
       }
     }
 
     if (isTimeSeries && colEnd > colStart) {
-      // Time Series: primeira coluna é data, outras são números
+      // Time Series: usar a coluna de data encontrada, outras são números
       const datasets = [];
+      let datasetIndex = 0;
 
-      // Criar um dataset para cada coluna numérica
-      for (let colIndex = colStart + 1; colIndex <= colEnd; colIndex++) {
+      // Criar um dataset para cada coluna numérica (exceto a coluna de data)
+      for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
+        // Pular a coluna de data
+        if (colIndex === dateColumnIndex) {
+          continue;
+        }
+
         const columnName = order[colIndex]?.name;
+        if (!columnName) {
+          continue;
+        }
+
         const dataPoints = [];
 
         for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-          const timeValue = data[rowIndex]?.attributes[firstColumnName];
+          const timeValue = data[rowIndex]?.attributes[dateColumnName];
           const numericValue = data[rowIndex]?.attributes[columnName];
 
           if (timeValue && typeof numericValue === 'number' && !isNaN(numericValue)) {
@@ -115,10 +138,11 @@ const ChartVisualization = ({
           datasets.push({
             label: columnName,
             data: dataPoints,
-            borderColor: `hsl(${(colIndex - colStart) * 60}, 70%, 50%)`,
-            backgroundColor: `hsla(${(colIndex - colStart) * 60}, 70%, 50%, 0.1)`,
+            borderColor: `hsl(${datasetIndex * 60}, 70%, 50%)`,
+            backgroundColor: `hsla(${datasetIndex * 60}, 70%, 50%, 0.1)`,
             tension: 0.1
           });
+          datasetIndex++;
         }
       }
 
@@ -139,7 +163,7 @@ const ChartVisualization = ({
               },
               title: {
                 display: true,
-                text: firstColumnName
+                text: dateColumnName
               }
             },
             y: {
@@ -172,7 +196,9 @@ const ChartVisualization = ({
 
         for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
           const columnName = order[colIndex]?.name;
-          if (!columnName) continue;
+          if (!columnName) {
+            continue;
+          }
 
           // Coletar todos os valores desta coluna
           const columnValues = [];

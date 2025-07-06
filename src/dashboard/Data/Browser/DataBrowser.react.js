@@ -45,6 +45,8 @@ export default class DataBrowser extends React.Component {
       selectedCells: { list: new Set(), rowStart: -1, rowEnd: -1, colStart: -1, colEnd: -1 },
       firstSelectedCell: null,
       selectedData: [],
+      numericSelectedData: [], // Dados apenas numéricos para operações Sum
+      hasDateInSelection: false, // Flag para detectar se há datas na seleção
       prevClassName: props.className,
       panelWidth: 300,
       isResizing: false,
@@ -92,6 +94,8 @@ export default class DataBrowser extends React.Component {
         selectedCells: { list: new Set(), rowStart: -1, rowEnd: -1, colStart: -1, colEnd: -1 },
         firstSelectedCell: null,
         selectedData: [],
+        numericSelectedData: [],
+        hasDateInSelection: false,
       });
     } else if (
       Object.keys(props.columns).length !== Object.keys(this.props.columns).length ||
@@ -581,6 +585,8 @@ export default class DataBrowser extends React.Component {
 
       const newSelection = new Set();
       const selectedData = [];
+      let hasDateColumns = false; // Flag para detectar se há colunas de data
+
       for (let x = rowStart; x <= rowEnd; x++) {
         let rowData = null;
         if (validColumns) {
@@ -596,8 +602,10 @@ export default class DataBrowser extends React.Component {
               selectedData.push(value);
             } else if (columnType === 'Date' && value instanceof Date) {
               selectedData.push(value);
+              hasDateColumns = true; // Marcar que há datas
             } else if (columnType === 'Date' && typeof value === 'string' && !isNaN(Date.parse(value))) {
               selectedData.push(new Date(value));
+              hasDateColumns = true; // Marcar que há datas
             } else if (columnType === 'String' && typeof value === 'string') {
               // Para strings, incluir apenas se puderem ser interpretadas como números
               const numValue = parseFloat(value);
@@ -612,6 +620,11 @@ export default class DataBrowser extends React.Component {
         }
       }
 
+      // Criar array apenas com números para operações de soma (excluindo datas)
+      const numericData = selectedData.filter(value =>
+        typeof value === 'number' && !isNaN(value)
+      );
+
       if (newSelection.size > 1) {
         this.setCurrent(null);
         this.props.setLoadingInfoPanel(false);
@@ -625,6 +638,8 @@ export default class DataBrowser extends React.Component {
           },
           selectedObjectId: undefined,
           selectedData,
+          numericSelectedData: numericData, // Dados apenas numéricos para Sum
+          hasDateInSelection: hasDateColumns, // Flag para saber se há datas
         });
       } else {
         this.setCurrent({ row, col });
@@ -633,6 +648,8 @@ export default class DataBrowser extends React.Component {
       this.setState({
         selectedCells: { list: new Set(), rowStart: -1, rowEnd: -1, colStart: -1, colEnd: -1 },
         selectedData: [],
+        numericSelectedData: [], // Limpar dados numéricos
+        hasDateInSelection: false, // Limpar flag de datas
         current: { row, col },
         firstSelectedCell: clickedCellKey,
       });
@@ -757,7 +774,7 @@ export default class DataBrowser extends React.Component {
           editCloneRows={editCloneRows}
           onCancelPendingEditRows={onCancelPendingEditRows}
           order={this.state.order}
-          selectedData={this.state.selectedData}
+          selectedData={this.state.hasDateInSelection ? this.state.numericSelectedData : this.state.selectedData}
           allClasses={Object.keys(this.props.schema.data.get('classes').toObject())}
           allClassesSchema={this.state.allClassesSchema}
           togglePanel={this.togglePanelVisibility}
