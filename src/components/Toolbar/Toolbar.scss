@@ -205,7 +205,7 @@ body:global(.expanded) {
 // Responsiveness for chart button
 @media (max-width: 968px) {
   .stats {
-    right: 120px; // Menor distância em telas médias
+    right: 120px; // Smaller distance on medium screens
   }
 }
 
@@ -228,7 +228,7 @@ body:global(.expanded) {
   }
 
   .stats {
-    right: 110px; // Ajustado para telas menores
+    right: 110px; // Adjusted for smaller screens
     bottom: 10px;
     padding: 6px 10px;
     font-size: 13px;
@@ -248,7 +248,7 @@ body:global(.expanded) {
     padding: 5px 8px;
     font-size: 11px;
 
-    // Em telas muito pequenas, mostra apenas o ícone
+    // On very small screens, show only the icon
     span {
       display: none;
     }

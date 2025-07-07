@@ -68,13 +68,13 @@ const ChartVisualization = ({
       }
     }
 
-    // Determinar se é time series de forma mais rigorosa
+    // Determine if it's time series more rigorously
     // Time series if: we have multiple columns AND at least one column is a date
     let isTimeSeries = false;
     let dateColumnName = null;
     let dateColumnIndex = -1;
 
-    // Procurar por qualquer coluna de data na seleção (não apenas a primeira)
+    // Look for any date column in the selection (not just the first)
     if (colEnd > colStart && columns) {
       for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
         const columnName = order[colIndex]?.name;
@@ -106,7 +106,7 @@ const ChartVisualization = ({
             }
           }
 
-          if (dateCount >= totalRows * 0.6) { // 60% devem ser datas válidas
+          if (dateCount >= totalRows * 0.6) { // 60% must be valid dates
             isTimeSeries = true;
             dateColumnName = columnName;
             dateColumnIndex = colIndex;
@@ -117,13 +117,13 @@ const ChartVisualization = ({
     }
 
     if (isTimeSeries && colEnd > colStart) {
-      // Time Series: usar a coluna de data encontrada, outras são números
+      // Time Series: use the found date column, others are numbers
       const datasets = [];
       let datasetIndex = 0;
 
       // Create a dataset for each numeric column (except the date column)
       for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
-        // Pular a coluna de data
+        // Skip the date column
         if (colIndex === dateColumnIndex) {
           continue;
         }
@@ -202,7 +202,7 @@ const ChartVisualization = ({
         }
       };
     } else {
-      // Number Series: apenas valores numéricos
+      // Number Series: only numeric values
       const labels = [];
       const dataPoints = [];
 
@@ -478,7 +478,7 @@ const ChartVisualization = ({
         // Bar ou Line Chart
         const ChartComponent = chartType === 'bar' ? Bar : Line;
 
-        // Melhorar as opções para dimensionamento correto
+        // Improve options for correct sizing
         const enhancedOptions = {
           ...chartData.options,
           responsive: true,
