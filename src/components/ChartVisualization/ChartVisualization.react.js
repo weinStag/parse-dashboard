@@ -5,6 +5,7 @@
  * This source code is licensed under the license found in the LICENSE file in
  * the root directory of this source tree.
  */
+import PropTypes from 'lib/PropTypes';
 import React, { useMemo, useState } from 'react';
 import {
   Chart as ChartJS,
@@ -23,7 +24,7 @@ import { Bar, Line, Pie } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
 import styles from './ChartVisualization.scss';
 
-// Registrar os componentes necessários do Chart.js
+// Register necessary Chart.js components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -48,7 +49,7 @@ const ChartVisualization = ({
 
   // Processar dados selecionados para determinar o tipo de visualização
   const chartData = useMemo(() => {
-    // Validação inicial mais rigorosa
+    // More rigorous initial validation
     if (!selectedData || selectedData.length === 0 || !selectedCells || !data || !Array.isArray(data)) {
       return null;
     }
@@ -207,7 +208,7 @@ const ChartVisualization = ({
 
       // Se múltiplas colunas, criar datasets separados para cada coluna
       if (colEnd > colStart) {
-        // CORREÇÃO: Em vez de calcular médias, mostrar todos os valores
+        // FIX: Instead of calculating averages, show all values
         const datasets = [];
 
         for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
@@ -297,7 +298,7 @@ const ChartVisualization = ({
           }
         };
       } else {
-        // Única coluna: usar índices das linhas como rótulos (MANTER COMO ESTÁ)
+        // Single column: use row indices as labels (KEEP AS IS)
         const columnName = order[colStart]?.name;
         if (columnName) {
           for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
@@ -347,7 +348,7 @@ const ChartVisualization = ({
                 color: '#333'
               },
               legend: {
-                display: false // Uma coluna não precisa de legenda
+                display: false // Single column doesn't need legend
               },
               tooltip: {
                 backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -390,13 +391,13 @@ const ChartVisualization = ({
         />
       );
     } else {
-      // Para number series, suportar bar, line e pie charts
+      // For number series, support bar, line and pie charts
       if (chartType === 'pie') {
-        // Para pie chart, verificar se temos dados válidos
+        // For pie chart, verify if we have valid data
         const values = chartData.data.datasets[0].data;
         const labels = chartData.data.labels;
 
-        // Filtrar valores válidos (> 0) para pie chart
+        // Filter valid values (> 0) for pie chart
         const validData = [];
         const validLabels = [];
         const validColors = [];
@@ -617,6 +618,20 @@ const ChartVisualization = ({
       </div>
     </div>
   );
+};
+
+ChartVisualization.propTypes = {
+  selectedData: PropTypes.array.isRequired,
+  selectedCells: PropTypes.shape({
+    list: PropTypes.instanceOf(Set),
+    rowStart: PropTypes.number.isRequired,
+    rowEnd: PropTypes.number.isRequired,
+    colStart: PropTypes.number.isRequired,
+    colEnd: PropTypes.number.isRequired,
+  }).isRequired,
+  data: PropTypes.array.isRequired,
+  order: PropTypes.array.isRequired,
+  columns: PropTypes.object.isRequired
 };
 
 export default ChartVisualization;

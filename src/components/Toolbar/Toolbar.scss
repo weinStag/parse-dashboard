@@ -163,7 +163,7 @@ body:global(.expanded) {
 .dataControls {
   position: absolute;
   right: 20px;
-  bottom: 10px; // Movido para a mesma linha do stats
+  bottom: 10px; // Moved to the same line as stats
   display: flex;
   align-items: center;
   gap: 16px;
@@ -255,7 +255,7 @@ body:global(.expanded) {
   }
 
   .stats {
-    right: 80px; // Posição ajustada para mobile
+    right: 80px; // Position adjusted for mobile
     bottom: 10px;
     font-size: 12px;
     padding: 5px 8px;

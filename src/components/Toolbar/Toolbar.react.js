@@ -38,7 +38,7 @@ const Stats = ({ data, classwiseCloudFunctions, className, appId, appName }) => 
     },
     {
       type: 'p99',
-      label: 'P999',
+      label: 'P99',
       getValue: data => {
         const sorted = data.sort((a, b) => a - b);
         return sorted[Math.floor(sorted.length * 0.99)];
