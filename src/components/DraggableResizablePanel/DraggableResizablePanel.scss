@@ -9,7 +9,7 @@
 
 .resizableContainer {
   border-radius: 8px;
-  overflow: visible; // Mudança: permitir que os handles sejam visíveis fora da borda
+  overflow: visible; // Change: allow handles to be visible outside the border
 
   :global(.react-resizable-handle) {
     position: absolute;

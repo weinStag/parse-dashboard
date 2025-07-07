@@ -121,7 +121,7 @@ const ChartVisualization = ({
       const datasets = [];
       let datasetIndex = 0;
 
-      // Criar um dataset para cada coluna numérica (exceto a coluna de data)
+      // Create a dataset for each numeric column (except the date column)
       for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
         // Pular a coluna de data
         if (colIndex === dateColumnIndex) {
@@ -206,7 +206,7 @@ const ChartVisualization = ({
       const labels = [];
       const dataPoints = [];
 
-      // Se múltiplas colunas, criar datasets separados para cada coluna
+      // If multiple columns, create separate datasets for each column
       if (colEnd > colStart) {
         // FIX: Instead of calculating averages, show all values
         const datasets = [];
