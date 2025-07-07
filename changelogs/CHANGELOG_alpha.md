@@ -1,3 +1,10 @@
+# [7.3.0-alpha.1](https://github.com/parse-community/parse-dashboard/compare/7.2.1...7.3.0-alpha.1) (2025-07-07)
+
+
+### Features
+
+* Add quick-add button to array parameter in Cloud Config ([#2866](https://github.com/parse-community/parse-dashboard/issues/2866)) ([e98ccb2](https://github.com/parse-community/parse-dashboard/commit/e98ccb236459d891b60383fa3e040b212ac07044))
+
 ## [7.2.1-alpha.1](https://github.com/parse-community/parse-dashboard/compare/7.2.0...7.2.1-alpha.1) (2025-06-02)
 
 
