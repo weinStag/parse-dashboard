@@ -1,21 +1,21 @@
 # [7.3.0-alpha.2](https://github.com/parse-community/parse-dashboard/compare/7.3.0-alpha.1...7.3.0-alpha.2) (2025-07-07)
 
 
-### Features
+## Features
 
 * Add clipboard icon to copy value of key-value element in info panel ([#2871](https://github.com/parse-community/parse-dashboard/issues/2871)) ([7862c42](https://github.com/parse-community/parse-dashboard/commit/7862c42e58bb8296635f3df1036eb5348f8897fa))
 
 # [7.3.0-alpha.1](https://github.com/parse-community/parse-dashboard/compare/7.2.1...7.3.0-alpha.1) (2025-07-07)
 
 
-### Features
+## Features
 
 * Add quick-add button to array parameter in Cloud Config ([#2866](https://github.com/parse-community/parse-dashboard/issues/2866)) ([e98ccb2](https://github.com/parse-community/parse-dashboard/commit/e98ccb236459d891b60383fa3e040b212ac07044))
 
 ## [7.2.1-alpha.1](https://github.com/parse-community/parse-dashboard/compare/7.2.0...7.2.1-alpha.1) (2025-06-02)
 
 
-### Bug Fixes
+## Bug Fixes
 
 * Data browser does not cancel obsolete long-loading request on sorting field change ([#2839](https://github.com/parse-community/parse-dashboard/issues/2839)) ([0f85376](https://github.com/parse-community/parse-dashboard/commit/0f85376b8ae1db7ae31626896b06fdc0bd8efd75))
 
@@ -1421,13 +1421,6 @@
 ### Features
 
 * Add clipboard icon to copy value of key-value element in info panel ([#2871](https://github.com/parse-community/parse-dashboard/issues/2871)) ([7862c42](https://github.com/parse-community/parse-dashboard/commit/7862c42e58bb8296635f3df1036eb5348f8897fa))
-
-# [7.3.0-alpha.1](https://github.com/parse-community/parse-dashboard/compare/7.2.1...7.3.0-alpha.1) (2025-07-07)
-
-
-### Features
-
-* Add quick-add button to array parameter in Cloud Config ([#2866](https://github.com/parse-community/parse-dashboard/issues/2866)) ([e98ccb2](https://github.com/parse-community/parse-dashboard/commit/e98ccb236459d891b60383fa3e040b212ac07044))
 
 ## [7.2.1-alpha.1](https://github.com/parse-community/parse-dashboard/compare/7.2.0...7.2.1-alpha.1) (2025-06-02)
 
