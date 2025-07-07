@@ -47,7 +47,7 @@ const ChartVisualization = ({
 }) => {
   const [chartType, setChartType] = useState('bar');
 
-  // Processar dados selecionados para determinar o tipo de visualização
+  // Process selected data to determine the type of visualization
   const chartData = useMemo(() => {
     // More rigorous initial validation
     if (!selectedData || selectedData.length === 0 || !selectedCells || !data || !Array.isArray(data)) {
@@ -64,7 +64,7 @@ const ChartVisualization = ({
     // Check if all row indices are valid
     for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
       if (!data[rowIndex] || !data[rowIndex].attributes) {
-        return null; // Dados inconsistentes, abortar
+        return null; // Inconsistent data, abort
       }
     }
 
@@ -246,7 +246,7 @@ const ChartVisualization = ({
           }
         }
 
-        // Usar os labels da primeira coluna (todas devem ter o mesmo número de linhas)
+        // Use labels from the first column (all should have the same number of rows)
         for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
           labels.push(`Row ${rowIndex + 1}`);
         }

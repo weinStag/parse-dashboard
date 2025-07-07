@@ -50,7 +50,7 @@ const DraggableResizablePanel = ({
       const newX = e.clientX - dragStart.x;
       const newY = e.clientY - dragStart.y;
 
-      // Limitar a posição para não sair da tela
+      // Limit position to not go off screen
       const maxX = window.innerWidth - size.width;
       const maxY = window.innerHeight - size.height;
 
@@ -112,7 +112,7 @@ const DraggableResizablePanel = ({
         className={styles.resizableContainer}
       >
         <div className={styles.panelContainer}>
-          {/* Barra de título */}
+          {/* Title bar */}
           <div
             ref={titleBarRef}
             className={styles.titleBar}
@@ -134,7 +134,7 @@ const DraggableResizablePanel = ({
             </div>
           </div>
 
-          {/* Conteúdo do painel */}
+          {/* Panel content */}
           <div className={styles.content}>
             {children}
           </div>

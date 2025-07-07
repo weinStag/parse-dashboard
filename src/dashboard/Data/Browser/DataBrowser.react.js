@@ -154,7 +154,7 @@ export default class DataBrowser extends React.Component {
       }
     }
 
-    // Fechar painel de gráfico se os dados mudaram (como quando ordena a tabela)
+    // Close chart panel if data changed (like when sorting the table)
     if (prevProps.data !== this.props.data && this.state.isChartPanelVisible) {
       this.setState({
         isChartPanelVisible: false,
