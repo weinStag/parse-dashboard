@@ -1,0 +1,16 @@
+@import 'stylesheets/globals.scss';
+
+.configActionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  width: 25px;
+  height: 25px;
+  cursor: pointer;
+  svg {
+    fill: currentColor;
+    color: $darkBlue;
+  }
+}
+
