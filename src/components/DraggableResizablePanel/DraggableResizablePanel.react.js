@@ -18,7 +18,7 @@ const DraggableResizablePanel = ({
   maxWidth = 800,
   minHeight = 300,
   maxHeight = 600,
-  title = "Panel",
+  title = 'Panel',
   onClose,
   initialPosition = { x: 100, y: 100 }
 }) => {
