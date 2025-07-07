@@ -28,13 +28,13 @@ const DraggableResizablePanel = ({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const panelRef = useRef(null);
   const titleBarRef = useRef(null);  const handleMouseDown = (e) => {
-    // Verificar se o clique foi na barra de título ou seus filhos
+    // Check if the click was on the title bar or its children
     if (titleBarRef.current && (
       e.target === titleBarRef.current ||
       titleBarRef.current.contains(e.target)
     )) {
 
-      // Verificar se não clicou no botão fechar
+      // Check that the close button was not clicked
       if (!e.target.closest('[data-close-button="true"]')) {
         setIsDragging(true);
         setDragStart({

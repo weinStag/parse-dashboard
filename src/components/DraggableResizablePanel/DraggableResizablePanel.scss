@@ -18,7 +18,7 @@
     transition: opacity 0.2s;
   }
 
-  // Mostrar handles quando hover na janela
+  // Show handles when hovering over the window
   &:hover :global(.react-resizable-handle) {
     opacity: 1;
   }

@@ -56,12 +56,12 @@ const ChartVisualization = ({
 
     const { rowStart, rowEnd, colStart, colEnd } = selectedCells;
 
-    // Verificar se temos dados válidos e se os índices são válidos
+    // Check if we have valid data and if indices are valid
     if (rowStart === -1 || colStart === -1 || rowEnd >= data.length || rowStart < 0) {
       return null;
     }
 
-    // Verificar se todos os índices de linha são válidos
+    // Check if all row indices are valid
     for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
       if (!data[rowIndex] || !data[rowIndex].attributes) {
         return null; // Dados inconsistentes, abortar
@@ -69,7 +69,7 @@ const ChartVisualization = ({
     }
 
     // Determinar se é time series de forma mais rigorosa
-    // Time series se: temos múltiplas colunas E pelo menos uma coluna é data
+    // Time series if: we have multiple columns AND at least one column is a date
     let isTimeSeries = false;
     let dateColumnName = null;
     let dateColumnIndex = -1;
@@ -82,7 +82,7 @@ const ChartVisualization = ({
           continue;
         }
 
-        // Verificar o tipo da coluna no schema
+        // Check the column type in the schema
         const columnType = columns[columnName]?.type;
         const isDateColumn = columnType === 'Date' ||
                             /^(date|time|created|updated|when|at)$/i.test(columnName) ||
@@ -90,12 +90,12 @@ const ChartVisualization = ({
                             columnName.toLowerCase().includes('time');
 
         if (isDateColumn) {
-          // Verificar se a coluna contém realmente datas válidas
+          // Check if the column actually contains valid dates
           let dateCount = 0;
-          const totalRows = Math.min(3, rowEnd - rowStart + 1); // Verificar até 3 linhas
+          const totalRows = Math.min(3, rowEnd - rowStart + 1); // Check up to 3 rows
 
           for (let rowIndex = rowStart; rowIndex < rowStart + totalRows; rowIndex++) {
-            // Verificar se o índice é válido antes de acessar
+            // Check if the index is valid before accessing
             if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
               continue;
             }
@@ -110,7 +110,7 @@ const ChartVisualization = ({
             isTimeSeries = true;
             dateColumnName = columnName;
             dateColumnIndex = colIndex;
-            break; // Encontrou uma coluna de data válida
+            break; // Found a valid date column
           }
         }
       }
@@ -136,7 +136,7 @@ const ChartVisualization = ({
         const dataPoints = [];
 
         for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-          // Verificar se o índice é válido
+          // Check if the index is valid
           if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
             continue;
           }
@@ -217,12 +217,12 @@ const ChartVisualization = ({
             continue;
           }
 
-          // Coletar todos os valores desta coluna
+          // Collect all values from this column
           const columnValues = [];
           const columnLabels = [];
 
           for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-            // Verificar se o índice é válido
+            // Check if the index is valid
             if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
               continue;
             }
@@ -272,7 +272,7 @@ const ChartVisualization = ({
                 color: '#333'
               },
               legend: {
-                display: datasets.length > 1 // Mostrar legenda se múltiplas colunas
+                display: datasets.length > 1 // Show legend if multiple columns
               },
               tooltip: {
                 backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -302,7 +302,7 @@ const ChartVisualization = ({
         const columnName = order[colStart]?.name;
         if (columnName) {
           for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-            // Verificar se o índice é válido
+            // Check if the index is valid
             if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
               continue;
             }
