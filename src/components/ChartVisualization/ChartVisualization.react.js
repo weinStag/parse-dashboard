@@ -38,6 +38,338 @@ ChartJS.register(
   TimeScale
 );
 
+// Utility functions for chart data processing
+const validateInputData = (selectedData, selectedCells, data) => {
+  if (!selectedData || selectedData.length === 0 || !selectedCells || !data || !Array.isArray(data)) {
+    return false;
+  }
+
+  const { rowStart, rowEnd, colStart } = selectedCells;
+
+  // Check if we have valid data and if indices are valid
+  if (rowStart === -1 || colStart === -1 || rowEnd >= data.length || rowStart < 0) {
+    return false;
+  }
+
+  // Check if all row indices are valid
+  for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
+    if (!data[rowIndex] || !data[rowIndex].attributes) {
+      return false; // Inconsistent data, abort
+    }
+  }
+
+  return true;
+};
+
+const detectTimeSeriesData = (selectedCells, data, order, columns) => {
+  const { rowStart, rowEnd, colStart, colEnd } = selectedCells;
+  let isTimeSeries = false;
+  let dateColumnName = null;
+  let dateColumnIndex = -1;
+
+  // Look for any date column in the selection (not just the first)
+  if (colEnd > colStart && columns) {
+    for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
+      const columnName = order[colIndex]?.name;
+      if (!columnName) {
+        continue;
+      }
+
+      // Check the column type in the schema
+      const columnType = columns[columnName]?.type;
+      const isDateColumn = columnType === 'Date' ||
+                          /^(date|time|created|updated|when|at)$/i.test(columnName) ||
+                          columnName.toLowerCase().includes('date') ||
+                          columnName.toLowerCase().includes('time');
+
+      if (isDateColumn) {
+        // Check if the column actually contains valid dates
+        let dateCount = 0;
+        const totalRows = Math.min(3, rowEnd - rowStart + 1); // Check up to 3 rows
+
+        for (let rowIndex = rowStart; rowIndex < rowStart + totalRows; rowIndex++) {
+          // Check if the index is valid before accessing
+          if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
+            continue;
+          }
+          const value = data[rowIndex].attributes[columnName];
+          if (value instanceof Date ||
+              (typeof value === 'string' && !isNaN(Date.parse(value)) && new Date(value).getFullYear() > 1900)) {
+            dateCount++;
+          }
+        }
+
+        if (dateCount >= totalRows * 0.6) { // 60% must be valid dates
+          isTimeSeries = true;
+          dateColumnName = columnName;
+          dateColumnIndex = colIndex;
+          break; // Found a valid date column
+        }
+      }
+    }
+  }
+
+  return { isTimeSeries, dateColumnName, dateColumnIndex };
+};
+
+const processTimeSeriesData = (selectedCells, data, order, dateColumnName, dateColumnIndex) => {
+  const { rowStart, rowEnd, colStart, colEnd } = selectedCells;
+  const datasets = [];
+  let datasetIndex = 0;
+
+  // Create a dataset for each numeric column (except the date column)
+  for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
+    // Skip the date column
+    if (colIndex === dateColumnIndex) {
+      continue;
+    }
+
+    const columnName = order[colIndex]?.name;
+    if (!columnName) {
+      continue;
+    }
+
+    const dataPoints = [];
+
+    for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
+      // Check if the index is valid
+      if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
+        continue;
+      }
+      const timeValue = data[rowIndex].attributes[dateColumnName];
+      const numericValue = data[rowIndex].attributes[columnName];
+
+      if (timeValue && typeof numericValue === 'number' && !isNaN(numericValue)) {
+        dataPoints.push({
+          x: new Date(timeValue),
+          y: numericValue
+        });
+      }
+    }
+
+    if (dataPoints.length > 0) {
+      datasets.push({
+        label: columnName,
+        data: dataPoints,
+        borderColor: `hsl(${datasetIndex * 60}, 70%, 50%)`,
+        backgroundColor: `hsla(${datasetIndex * 60}, 70%, 50%, 0.1)`,
+        tension: 0.1
+      });
+      datasetIndex++;
+    }
+  }
+
+  return {
+    type: 'timeSeries',
+    datasets,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          type: 'time',
+          time: {
+            displayFormats: {
+              day: 'MMM dd',
+              hour: 'HH:mm'
+            }
+          },
+          title: {
+            display: true,
+            text: dateColumnName
+          }
+        },
+        y: {
+          title: {
+            display: true,
+            text: 'Value'
+          }
+        }
+      },
+      plugins: {
+        title: {
+          display: true,
+          text: 'Time Series Visualization'
+        },
+        legend: {
+          display: datasets.length > 1
+        }
+      }
+    }
+  };
+};
+
+const processNumericSeriesData = (selectedCells, data, order, columns, chartType) => {
+  const { rowStart, rowEnd, colStart, colEnd } = selectedCells;
+  const labels = [];
+  const dataPoints = [];
+
+  // If multiple columns, create separate datasets for each column
+  if (colEnd > colStart) {
+    const datasets = [];
+
+    for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
+      const columnName = order[colIndex]?.name;
+      if (!columnName) {
+        continue;
+      }
+
+      // Collect all values from this column
+      const columnValues = [];
+
+      for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
+        // Check if the index is valid
+        if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
+          continue;
+        }
+        const value = data[rowIndex].attributes[columnName];
+        if (typeof value === 'number' && !isNaN(value)) {
+          columnValues.push(value);
+        }
+      }
+
+      if (columnValues.length > 0) {
+        datasets.push({
+          label: columnName,
+          data: columnValues,
+          backgroundColor: `hsla(${(colIndex - colStart) * 60}, 70%, 60%, 0.8)`,
+          borderColor: `hsl(${(colIndex - colStart) * 60}, 70%, 50%)`,
+          borderWidth: 2,
+          borderRadius: chartType === 'bar' ? 4 : 0,
+          tension: chartType === 'line' ? 0.4 : 0
+        });
+      }
+    }
+
+    // Use labels from the first column (all should have the same number of rows)
+    for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
+      labels.push(`Row ${rowIndex + 1}`);
+    }
+
+    return {
+      type: 'numberSeries',
+      data: {
+        labels,
+        datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          intersect: false,
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: 'Selected Data Visualization',
+            font: { size: 16, weight: 'bold' },
+            color: '#333'
+          },
+          legend: {
+            display: datasets.length > 1 // Show legend if multiple columns
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: '#169cee',
+            borderWidth: 1
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Value', font: { size: 14, weight: 'bold' }, color: '#555' },
+            grid: { color: 'rgba(0, 0, 0, 0.1)' },
+            ticks: { color: '#666' }
+          },
+          x: {
+            title: { display: true, text: 'Categories', font: { size: 14, weight: 'bold' }, color: '#555' },
+            grid: { color: 'rgba(0, 0, 0, 0.1)' },
+            ticks: { color: '#666' }
+          }
+        }
+      }
+    };
+  } else {
+    // Single column: use row indices as labels
+    const columnName = order[colStart]?.name;
+    if (columnName) {
+      for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
+        // Check if the index is valid
+        if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
+          continue;
+        }
+        labels.push(`Row ${rowIndex + 1}`);
+        const value = data[rowIndex].attributes[columnName];
+        dataPoints.push(typeof value === 'number' && !isNaN(value) ? value : 0);
+      }
+    }
+
+    if (labels.length === 0 || dataPoints.length === 0) {
+      return null;
+    }
+
+    return {
+      type: 'numberSeries',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Selected Values',
+          data: dataPoints,
+          backgroundColor: chartType === 'bar'
+            ? dataPoints.map((_, index) => `hsla(${index * 360 / dataPoints.length}, 70%, 60%, 0.8)`)
+            : 'rgba(22, 156, 238, 0.7)',
+          borderColor: chartType === 'bar'
+            ? dataPoints.map((_, index) => `hsl(${index * 360 / dataPoints.length}, 70%, 50%)`)
+            : 'rgba(22, 156, 238, 1)',
+          borderWidth: 2,
+          borderRadius: chartType === 'bar' ? 4 : 0,
+          tension: chartType === 'line' ? 0.4 : 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          intersect: false,
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: 'Selected Data Visualization',
+            font: { size: 16, weight: 'bold' },
+            color: '#333'
+          },
+          legend: {
+            display: false // Single column doesn't need legend
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: '#169cee',
+            borderWidth: 1
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Value', font: { size: 14, weight: 'bold' }, color: '#555' },
+            grid: { color: 'rgba(0, 0, 0, 0.1)' },
+            ticks: { color: '#666' }
+          },
+          x: {
+            title: { display: true, text: 'Categories', font: { size: 14, weight: 'bold' }, color: '#555' },
+            grid: { color: 'rgba(0, 0, 0, 0.1)' },
+            ticks: { color: '#666' }
+          }
+        }
+      }
+    };
+  }
+};
+
 const ChartVisualization = ({
   selectedData,
   selectedCells,
@@ -49,333 +381,18 @@ const ChartVisualization = ({
 
   // Process selected data to determine the type of visualization
   const chartData = useMemo(() => {
-    // More rigorous initial validation
-    if (!selectedData || selectedData.length === 0 || !selectedCells || !data || !Array.isArray(data)) {
+    if (!validateInputData(selectedData, selectedCells, data)) {
       return null;
     }
 
-    const { rowStart, rowEnd, colStart, colEnd } = selectedCells;
+    const timeSeriesInfo = detectTimeSeriesData(selectedCells, data, order, columns);
 
-    // Check if we have valid data and if indices are valid
-    if (rowStart === -1 || colStart === -1 || rowEnd >= data.length || rowStart < 0) {
-      return null;
-    }
-
-    // Check if all row indices are valid
-    for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-      if (!data[rowIndex] || !data[rowIndex].attributes) {
-        return null; // Inconsistent data, abort
-      }
-    }
-
-    // Determine if it's time series more rigorously
-    // Time series if: we have multiple columns AND at least one column is a date
-    let isTimeSeries = false;
-    let dateColumnName = null;
-    let dateColumnIndex = -1;
-
-    // Look for any date column in the selection (not just the first)
-    if (colEnd > colStart && columns) {
-      for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
-        const columnName = order[colIndex]?.name;
-        if (!columnName) {
-          continue;
-        }
-
-        // Check the column type in the schema
-        const columnType = columns[columnName]?.type;
-        const isDateColumn = columnType === 'Date' ||
-                            /^(date|time|created|updated|when|at)$/i.test(columnName) ||
-                            columnName.toLowerCase().includes('date') ||
-                            columnName.toLowerCase().includes('time');
-
-        if (isDateColumn) {
-          // Check if the column actually contains valid dates
-          let dateCount = 0;
-          const totalRows = Math.min(3, rowEnd - rowStart + 1); // Check up to 3 rows
-
-          for (let rowIndex = rowStart; rowIndex < rowStart + totalRows; rowIndex++) {
-            // Check if the index is valid before accessing
-            if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
-              continue;
-            }
-            const value = data[rowIndex].attributes[columnName];
-            if (value instanceof Date ||
-                (typeof value === 'string' && !isNaN(Date.parse(value)) && new Date(value).getFullYear() > 1900)) {
-              dateCount++;
-            }
-          }
-
-          if (dateCount >= totalRows * 0.6) { // 60% must be valid dates
-            isTimeSeries = true;
-            dateColumnName = columnName;
-            dateColumnIndex = colIndex;
-            break; // Found a valid date column
-          }
-        }
-      }
-    }
-
-    if (isTimeSeries && colEnd > colStart) {
-      // Time Series: use the found date column, others are numbers
-      const datasets = [];
-      let datasetIndex = 0;
-
-      // Create a dataset for each numeric column (except the date column)
-      for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
-        // Skip the date column
-        if (colIndex === dateColumnIndex) {
-          continue;
-        }
-
-        const columnName = order[colIndex]?.name;
-        if (!columnName) {
-          continue;
-        }
-
-        const dataPoints = [];
-
-        for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-          // Check if the index is valid
-          if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
-            continue;
-          }
-          const timeValue = data[rowIndex].attributes[dateColumnName];
-          const numericValue = data[rowIndex].attributes[columnName];
-
-          if (timeValue && typeof numericValue === 'number' && !isNaN(numericValue)) {
-            dataPoints.push({
-              x: new Date(timeValue),
-              y: numericValue
-            });
-          }
-        }
-
-        if (dataPoints.length > 0) {
-          datasets.push({
-            label: columnName,
-            data: dataPoints,
-            borderColor: `hsl(${datasetIndex * 60}, 70%, 50%)`,
-            backgroundColor: `hsla(${datasetIndex * 60}, 70%, 50%, 0.1)`,
-            tension: 0.1
-          });
-          datasetIndex++;
-        }
-      }
-
-      return {
-        type: 'timeSeries',
-        datasets,
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: {
-              type: 'time',
-              time: {
-                displayFormats: {
-                  day: 'MMM dd',
-                  hour: 'HH:mm'
-                }
-              },
-              title: {
-                display: true,
-                text: dateColumnName
-              }
-            },
-            y: {
-              title: {
-                display: true,
-                text: 'Value'
-              }
-            }
-          },
-          plugins: {
-            title: {
-              display: true,
-              text: 'Time Series Visualization'
-            },
-            legend: {
-              display: datasets.length > 1
-            }
-          }
-        }
-      };
+    if (timeSeriesInfo.isTimeSeries) {
+      return processTimeSeriesData(selectedCells, data, order, timeSeriesInfo.dateColumnName, timeSeriesInfo.dateColumnIndex);
     } else {
-      // Number Series: only numeric values
-      const labels = [];
-      const dataPoints = [];
-
-      // If multiple columns, create separate datasets for each column
-      if (colEnd > colStart) {
-        // FIX: Instead of calculating averages, show all values
-        const datasets = [];
-
-        for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
-          const columnName = order[colIndex]?.name;
-          if (!columnName) {
-            continue;
-          }
-
-          // Collect all values from this column
-          const columnValues = [];
-          const columnLabels = [];
-
-          for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-            // Check if the index is valid
-            if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
-              continue;
-            }
-            const value = data[rowIndex].attributes[columnName];
-            if (typeof value === 'number' && !isNaN(value)) {
-              columnValues.push(value);
-              columnLabels.push(`Row ${rowIndex + 1}`);
-            }
-          }
-
-          if (columnValues.length > 0) {
-            datasets.push({
-              label: columnName,
-              data: columnValues,
-              backgroundColor: `hsla(${(colIndex - colStart) * 60}, 70%, 60%, 0.8)`,
-              borderColor: `hsl(${(colIndex - colStart) * 60}, 70%, 50%)`,
-              borderWidth: 2,
-              borderRadius: chartType === 'bar' ? 4 : 0,
-              tension: chartType === 'line' ? 0.4 : 0
-            });
-          }
-        }
-
-        // Use labels from the first column (all should have the same number of rows)
-        for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-          labels.push(`Row ${rowIndex + 1}`);
-        }
-
-        return {
-          type: 'numberSeries',
-          data: {
-            labels,
-            datasets
-          },
-          options: {
-            // ...keep existing options...
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-              intersect: false,
-            },
-            plugins: {
-              title: {
-                display: true,
-                text: 'Selected Data Visualization',
-                font: { size: 16, weight: 'bold' },
-                color: '#333'
-              },
-              legend: {
-                display: datasets.length > 1 // Show legend if multiple columns
-              },
-              tooltip: {
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                titleColor: '#fff',
-                bodyColor: '#fff',
-                borderColor: '#169cee',
-                borderWidth: 1
-              }
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                title: { display: true, text: 'Value', font: { size: 14, weight: 'bold' }, color: '#555' },
-                grid: { color: 'rgba(0, 0, 0, 0.1)' },
-                ticks: { color: '#666' }
-              },
-              x: {
-                title: { display: true, text: 'Categories', font: { size: 14, weight: 'bold' }, color: '#555' },
-                grid: { color: 'rgba(0, 0, 0, 0.1)' },
-                ticks: { color: '#666' }
-              }
-            }
-          }
-        };
-      } else {
-        // Single column: use row indices as labels (KEEP AS IS)
-        const columnName = order[colStart]?.name;
-        if (columnName) {
-          for (let rowIndex = rowStart; rowIndex <= rowEnd; rowIndex++) {
-            // Check if the index is valid
-            if (rowIndex >= data.length || !data[rowIndex] || !data[rowIndex].attributes) {
-              continue;
-            }
-            labels.push(`Row ${rowIndex + 1}`);
-            const value = data[rowIndex].attributes[columnName];
-            dataPoints.push(typeof value === 'number' && !isNaN(value) ? value : 0);
-          }
-        }
-
-        if (labels.length === 0 || dataPoints.length === 0) {
-          return null;
-        }
-
-        return {
-          type: 'numberSeries',
-          data: {
-            labels,
-            datasets: [{
-              label: 'Selected Values',
-              data: dataPoints,
-              backgroundColor: chartType === 'bar'
-                ? dataPoints.map((_, index) => `hsla(${index * 360 / dataPoints.length}, 70%, 60%, 0.8)`)
-                : 'rgba(22, 156, 238, 0.7)',
-              borderColor: chartType === 'bar'
-                ? dataPoints.map((_, index) => `hsl(${index * 360 / dataPoints.length}, 70%, 50%)`)
-                : 'rgba(22, 156, 238, 1)',
-              borderWidth: 2,
-              borderRadius: chartType === 'bar' ? 4 : 0,
-              tension: chartType === 'line' ? 0.4 : 0
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-              intersect: false,
-            },
-            plugins: {
-              title: {
-                display: true,
-                text: 'Selected Data Visualization',
-                font: { size: 16, weight: 'bold' },
-                color: '#333'
-              },
-              legend: {
-                display: false // Single column doesn't need legend
-              },
-              tooltip: {
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                titleColor: '#fff',
-                bodyColor: '#fff',
-                borderColor: '#169cee',
-                borderWidth: 1
-              }
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                title: { display: true, text: 'Value', font: { size: 14, weight: 'bold' }, color: '#555' },
-                grid: { color: 'rgba(0, 0, 0, 0.1)' },
-                ticks: { color: '#666' }
-              },
-              x: {
-                title: { display: true, text: 'Categories', font: { size: 14, weight: 'bold' }, color: '#555' },
-                grid: { color: 'rgba(0, 0, 0, 0.1)' },
-                ticks: { color: '#666' }
-              }
-            }
-          }
-        };
-      }
+      return processNumericSeriesData(selectedCells, data, order, columns, chartType);
     }
-  }, [selectedData, selectedCells, data, order, columns]);
+  }, [selectedData, selectedCells, data, order, columns, chartType]);
 
   const renderChart = () => {
     // Safety check to prevent crashes
@@ -509,9 +526,6 @@ const ChartVisualization = ({
           },
           plugins: {
             ...chartData.options.plugins,
-            legend: {
-              display: false
-            },
             title: {
               display: true,
               text: 'Selected Data Visualization',
