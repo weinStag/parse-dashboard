@@ -258,7 +258,7 @@ const ChartVisualization = ({
             datasets
           },
           options: {
-            // ...manter as opções existentes...
+            // ...keep existing options...
             responsive: true,
             maintainAspectRatio: false,
             interaction: {
