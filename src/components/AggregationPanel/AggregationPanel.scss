@@ -106,13 +106,13 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    border-left: 1px solid transparent; 
+    border-left: 1px solid transparent;
     background-color: $blue;
     color: $white;
     cursor: pointer;
     padding-right: 4px;
-    
-    &.expanded {                         
+
+    &.expanded {
       border-left-color: #e3e3ea;
     }
   }
@@ -156,7 +156,7 @@
 }
 
 .segmentContainer {
-    border-left: 1px solid #e3e3ea;    
+    border-left: 1px solid #e3e3ea;
     border-bottom: 1px solid #e3e3ea;
     margin-bottom: 16px;
-  }
+}
