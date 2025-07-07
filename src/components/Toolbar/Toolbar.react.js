@@ -162,7 +162,7 @@ const Toolbar = props => {
               title={props.isChartPanelVisible ? 'Hide Data Visualization' : 'Show Data Visualization'}
             >
               <Icon width={16} height={16} fill="currentColor" name="analytics-outline" />
-              <span>{props.isChartPanelVisible ? 'Hide Chart' : 'Show Chart D'}</span>
+              <span>{props.isChartPanelVisible ? 'Hide Chart' : 'Show Chart'}</span>
             </button>
           )}
         </div>
