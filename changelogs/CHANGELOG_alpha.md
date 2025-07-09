@@ -1,3 +1,10 @@
+# [7.3.0-alpha.3](https://github.com/parse-community/parse-dashboard/compare/7.3.0-alpha.2...7.3.0-alpha.3) (2025-07-09)
+
+
+### Features
+
+* Add type mismatch warning when quick-adding entry to Cloud Config array parameter ([#2875](https://github.com/parse-community/parse-dashboard/issues/2875)) ([bb1837f](https://github.com/parse-community/parse-dashboard/commit/bb1837fd7af64e75364b53210dd710bc70d0e764))
+
 # [7.3.0-alpha.2](https://github.com/parse-community/parse-dashboard/compare/7.3.0-alpha.1...7.3.0-alpha.2) (2025-07-07)
 
 

@@ -10,11 +10,17 @@ import Label from 'components/Label/Label.react';
 import Modal from 'components/Modal/Modal.react';
 import React from 'react';
 import TextInput from 'components/TextInput/TextInput.react';
+import Checkbox from 'components/Checkbox/Checkbox.react';
 
 export default class AddArrayEntryDialog extends React.Component {
   constructor() {
     super();
-    this.state = { value: '' };
+    this.state = {
+      value: '',
+      showMismatchRow: false,
+      mismatchConfirmed: false,
+      parsedType: '',
+    };
     this.inputRef = React.createRef();
   }
 
@@ -24,9 +30,6 @@ export default class AddArrayEntryDialog extends React.Component {
     }
   }
 
-  valid() {
-    return this.state.value !== '';
-  }
 
   getValue() {
     try {
@@ -36,8 +39,57 @@ export default class AddArrayEntryDialog extends React.Component {
     }
   }
 
+  getType(value) {
+    if (Array.isArray(value)) {
+      return 'array';
+    }
+    if (value === null) {
+      return 'null';
+    }
+    return typeof value;
+  }
+
+  handleConfirm() {
+    const parsed = this.getValue();
+    const entryType = this.getType(parsed);
+    const lastType = this.props.lastType;
+
+    if (lastType && entryType !== lastType) {
+      if (!this.state.showMismatchRow) {
+        this.setState(
+          {
+            showMismatchRow: true,
+            mismatchConfirmed: false,
+            parsedType: entryType,
+          },
+          () => {
+            if (document.activeElement instanceof HTMLElement) {
+              document.activeElement.blur();
+            }
+          }
+        );
+        return;
+      }
+      if (!this.state.mismatchConfirmed) {
+        return;
+      }
+    }
+
+    this.props.onConfirm(parsed);
+    this.setState({
+      value: '',
+      showMismatchRow: false,
+      mismatchConfirmed: false,
+      parsedType: '',
+    });
+  }
+
   render() {
-    return (
+    const confirmDisabled =
+      this.state.value === '' ||
+      (this.state.showMismatchRow && !this.state.mismatchConfirmed);
+
+    const addEntryModal = (
       <Modal
         type={Modal.Types.INFO}
         icon="plus-solid"
@@ -45,8 +97,8 @@ export default class AddArrayEntryDialog extends React.Component {
         confirmText="Add Unique"
         cancelText="Cancel"
         onCancel={this.props.onCancel}
-        onConfirm={() => this.props.onConfirm(this.getValue())}
-        disabled={!this.valid()}
+        onConfirm={this.handleConfirm.bind(this)}
+        disabled={confirmDisabled}
       >
         <Field
           label={
@@ -60,11 +112,39 @@ export default class AddArrayEntryDialog extends React.Component {
               placeholder={'Enter value'}
               ref={this.inputRef}
               value={this.state.value}
-              onChange={value => this.setState({ value })}
+              onChange={value =>
+                this.setState({
+                  value,
+                  showMismatchRow: false,
+                  mismatchConfirmed: false,
+                })
+              }
             />
           }
         />
+        {this.state.showMismatchRow && (
+          <Field
+            label={
+              <Label
+                text="⚠️ Ignore type mismatch"
+                description={
+                  <>
+                    Previous item type is <strong>{this.props.lastType}</strong>, new entry type is <strong>{this.state.parsedType}</strong>.
+                  </>
+                }
+              />
+            }
+            input={
+              <Checkbox
+                checked={this.state.mismatchConfirmed}
+                onChange={checked => this.setState({ mismatchConfirmed: checked })}
+              />
+            }
+          />
+        )}
       </Modal>
     );
+
+    return addEntryModal;
   }
 }
