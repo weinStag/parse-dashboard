@@ -14,21 +14,22 @@ let newFeaturesInLatestVersion = [];
  * Gets the new features in the latest version of Parse Dashboard.
  */
 async function getNewFeaturesInLatestVersion() {
-  // Get latest version
-  const packageJson = (await import('package-json')).default;
-  const latestPackage = await packageJson('parse-dashboard', { version: 'latest', fullMetadata: true });
-
   try {
+    // Get latest version
+    const packageJson = (await import('package-json')).default;
+    const latestPackage = await packageJson('parse-dashboard', { version: 'latest', fullMetadata: true });
+
     if (latestPackage.parseDashboardFeatures instanceof Array) {
       newFeaturesInLatestVersion = latestPackage.parseDashboardFeatures.filter(feature => {
         return currentVersionFeatures.indexOf(feature) === -1;
       });
     }
   } catch {
+    // Fail silently if fetching the latest package information fails
     newFeaturesInLatestVersion = [];
   }
 }
-getNewFeaturesInLatestVersion()
+getNewFeaturesInLatestVersion().catch(() => {})
 
 function getMount(mountPath) {
   mountPath = mountPath || '';
@@ -250,6 +251,7 @@ module.exports = function(config, options) {
           <base href="${mountPath}"/>
           <script>
             PARSE_DASHBOARD_PATH = "${mountPath}";
+            PARSE_DASHBOARD_ENABLE_RESOURCE_CACHE = ${config.enableResourceCache ? 'true' : 'false'};
           </script>
           <title>Parse Dashboard</title>
         </head>

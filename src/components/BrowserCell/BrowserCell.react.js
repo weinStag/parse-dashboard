@@ -235,10 +235,12 @@ export default class BrowserCell extends Component {
 
         // BrowserToolbar + DataBrowserHeader height
         const topBoundary = 126;
+        // Account for BrowserFooter height when checking the bottom boundary
+        const bottomBoundary = window.innerHeight - 36;
 
         if (left < leftBoundary || right > window.innerWidth) {
           node.scrollIntoView({ block: 'nearest', inline: 'start' });
-        } else if (top < topBoundary || bottom > window.innerHeight) {
+        } else if (top < topBoundary || bottom > bottomBoundary) {
           node.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         }
       }
@@ -565,10 +567,6 @@ export default class BrowserCell extends Component {
       current,
       onEditChange,
       setCopyableValue,
-      selectedObjectId,
-      setSelectedObjectId,
-      callCloudFunction,
-      isPanelVisible,
       onPointerCmdClick,
       row,
       col,
@@ -578,7 +576,6 @@ export default class BrowserCell extends Component {
       markRequiredFieldRow,
       handleCellClick,
       selectedCells,
-      setShowAggregatedData,
     } = this.props;
 
     const classes = [...this.state.classes];
@@ -632,28 +629,26 @@ export default class BrowserCell extends Component {
       classes.push(styles.selected);
     }
 
+    const style = { width };
+    if (this.props.stickyLeft !== undefined) {
+      style.position = 'sticky';
+      style.left = this.props.stickyLeft;
+      style.zIndex = 1;
+      style.background = this.props.rowBackground;
+      style.borderBottom = '1px solid #e3e3ea';
+    }
+
     return (
       <span
         ref={this.cellRef}
         className={classes.join(' ')}
-        style={{ width }}
+        style={style}
         onClick={e => {
           if (e.metaKey === true && type === 'Pointer') {
             onPointerCmdClick(value);
           } else {
             setCopyableValue(hidden ? undefined : this.copyableValue);
-            if (selectedObjectId !== this.props.objectId) {
-              setShowAggregatedData(true);
-              setSelectedObjectId(this.props.objectId);
-              if (
-                this.props.objectId &&
-                isPanelVisible &&
-                ((e.shiftKey && !this.props.firstSelectedCell) || !e.shiftKey)
-              ) {
-                callCloudFunction(this.props.objectId, this.props.className, this.props.appId);
-              }
-            }
-            handleCellClick(e, row, col);
+            handleCellClick(e, row, col, this.props.objectId);
           }
         }}
         onDoubleClick={() => {

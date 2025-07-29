@@ -10,6 +10,9 @@ import copy from 'copy-to-clipboard';
 import BrowserTable from 'dashboard/Data/Browser/BrowserTable.react';
 import BrowserToolbar from 'dashboard/Data/Browser/BrowserToolbar.react';
 import * as ColumnPreferences from 'lib/ColumnPreferences';
+import { dateStringUTC } from 'lib/DateUtils';
+import getFileName from 'lib/getFileName';
+import Parse from 'parse';
 import React from 'react';
 import { ResizableBox } from 'react-resizable';
 import styles from './Databrowser.scss';
@@ -17,6 +20,51 @@ import styles from './Databrowser.scss';
 import AggregationPanel from '../../../components/AggregationPanel/AggregationPanel';
 import ChartVisualization from '../../../components/ChartVisualization/ChartVisualization.react';
 import DraggableResizablePanel from '../../../components/DraggableResizablePanel/DraggableResizablePanel.react';
+
+const BROWSER_SHOW_ROW_NUMBER = 'browserShowRowNumber';
+const AGGREGATION_PANEL_VISIBLE = 'aggregationPanelVisible';
+const BROWSER_SCROLL_TO_TOP = 'browserScrollToTop';
+
+function formatValueForCopy(value, type) {
+  if (value === undefined) {
+    return '';
+  }
+  if (value === null) {
+    return '(null)';
+  }
+  switch (type) {
+    case 'GeoPoint':
+      if (value && value.latitude !== undefined && value.longitude !== undefined) {
+        return `(${value.latitude}, ${value.longitude})`;
+      }
+      break;
+    case 'Date':
+      if (value && value.iso) {
+        value = new Date(value.iso);
+      } else if (typeof value === 'string') {
+        value = new Date(value);
+      }
+      if (value instanceof Date && !isNaN(value)) {
+        return dateStringUTC(value);
+      }
+      break;
+    case 'File':
+      if (value && typeof value.url === 'function') {
+        return getFileName(value);
+      }
+      break;
+    case 'Boolean':
+      return value ? 'True' : 'False';
+  }
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
 
 /**
  * DataBrowser renders the browser toolbar and data table
@@ -34,6 +82,17 @@ export default class DataBrowser extends React.Component {
       props.className,
       columnPreferences[props.className]
     );
+    const storedRowNumber =
+      window.localStorage?.getItem(BROWSER_SHOW_ROW_NUMBER) === 'true';
+    const storedPanelVisible =
+      window.localStorage?.getItem(AGGREGATION_PANEL_VISIBLE) === 'true';
+    const storedScrollToTop =
+      window.localStorage?.getItem(BROWSER_SCROLL_TO_TOP) !== 'false';
+    const hasAggregation =
+      props.classwiseCloudFunctions?.[
+        `${props.app.applicationId}${props.appName}`
+      ]?.[props.className];
+
     this.state = {
       order: order,
       current: null,
@@ -42,7 +101,7 @@ export default class DataBrowser extends React.Component {
       selectedObjectId: undefined,
       simplifiedSchema: this.getSimplifiedSchema(props.schema, props.className),
       allClassesSchema: this.getAllClassesSchema(props.schema, props.classes),
-      isPanelVisible: false,
+      isPanelVisible: storedPanelVisible && !!hasAggregation,
       selectedCells: { list: new Set(), rowStart: -1, rowEnd: -1, colStart: -1, colEnd: -1 },
       firstSelectedCell: null,
       selectedData: [],
@@ -55,6 +114,11 @@ export default class DataBrowser extends React.Component {
       showAggregatedData: true,
       isChartPanelVisible: false,
       chartPanelWidth: 400,
+      frozenColumnIndex: -1,
+      showRowNumber: storedRowNumber,
+      scrollToTop: storedScrollToTop,
+      prefetchCache: {},
+      selectionHistory: [],
     };
 
     this.handleResizeDiv = this.handleResizeDiv.bind(this);
@@ -71,10 +135,16 @@ export default class DataBrowser extends React.Component {
     this.setShowAggregatedData = this.setShowAggregatedData.bind(this);
     this.setCopyableValue = this.setCopyableValue.bind(this);
     this.setSelectedObjectId = this.setSelectedObjectId.bind(this);
+    this.handleCallCloudFunction = this.handleCallCloudFunction.bind(this);
     this.setContextMenu = this.setContextMenu.bind(this);
+    this.freezeColumns = this.freezeColumns.bind(this);
+    this.unfreezeColumns = this.unfreezeColumns.bind(this);
+    this.setShowRowNumber = this.setShowRowNumber.bind(this);
+    this.toggleScrollToTop = this.toggleScrollToTop.bind(this);
     this.handleCellClick = this.handleCellClick.bind(this);
     this.toggleChartPanelVisibility = this.toggleChartPanelVisibility.bind(this);
     this.saveOrderTimeout = null;
+    this.aggregationPanelRef = React.createRef();
   }
 
   componentWillReceiveProps(props) {
@@ -97,6 +167,9 @@ export default class DataBrowser extends React.Component {
         selectedData: [],
         numericSelectedData: [],
         hasDateInSelection: false,
+        frozenColumnIndex: -1,
+        prefetchCache: {},
+        selectionHistory: [],
       });
     } else if (
       Object.keys(props.columns).length !== Object.keys(this.props.columns).length ||
@@ -109,16 +182,20 @@ export default class DataBrowser extends React.Component {
         props.className,
         columnPreferences[props.className]
       );
-      this.setState({ order });
+      this.setState({ order, frozenColumnIndex: -1 });
     }
     if (props && props.className) {
-      if (
-        !props.classwiseCloudFunctions?.[`${props.app.applicationId}${props.appName}`]?.[
-          props.className
-        ]
-      ) {
+      const storedPanelVisible =
+        window.localStorage?.getItem(AGGREGATION_PANEL_VISIBLE) === 'true';
+      const hasAggregation =
+        props.classwiseCloudFunctions?.[
+          `${props.app.applicationId}${props.appName}`
+        ]?.[props.className];
+      if (!hasAggregation) {
         this.setState({ isPanelVisible: false });
         this.setState({ selectedObjectId: undefined });
+      } else {
+        this.setState({ isPanelVisible: storedPanelVisible });
       }
     } else {
       this.setState({ isPanelVisible: false });
@@ -164,6 +241,17 @@ export default class DataBrowser extends React.Component {
         hasDateInSelection: false,
       });
     }
+
+    if (
+      (this.props.AggregationPanelData !== prevProps.AggregationPanelData ||
+        this.state.selectedObjectId !== prevState.selectedObjectId) &&
+      this.state.isPanelVisible &&
+      this.aggregationPanelRef?.current
+    ) {
+      if (this.state.scrollToTop) {
+        this.aggregationPanelRef.current.scrollTop = 0;
+      }
+    }
   }
 
   handleResizeStart() {
@@ -208,9 +296,11 @@ export default class DataBrowser extends React.Component {
   }
 
   togglePanelVisibility() {
-    this.setState(prevState => ({ isPanelVisible: !prevState.isPanelVisible }));
+    const newVisibility = !this.state.isPanelVisible;
+    this.setState({ isPanelVisible: newVisibility });
+    window.localStorage?.setItem(AGGREGATION_PANEL_VISIBLE, newVisibility);
 
-    if (!this.state.isPanelVisible) {
+    if (!newVisibility) {
       this.props.setAggregationPanelData({});
       this.props.setLoadingInfoPanel(false);
       if (this.props.errorAggregatedData != {}) {
@@ -218,11 +308,11 @@ export default class DataBrowser extends React.Component {
       }
     }
 
-    if (!this.state.isPanelVisible && this.state.selectedObjectId) {
+    if (!newVisibility && this.state.selectedObjectId) {
       if (this.props.errorAggregatedData != {}) {
         this.props.setErrorAggregatedData({});
       }
-      this.props.callCloudFunction(
+      this.handleCallCloudFunction(
         this.state.selectedObjectId,
         this.props.className,
         this.props.app.applicationId
@@ -257,9 +347,15 @@ export default class DataBrowser extends React.Component {
 
   checkClassNameChange(prevClassName, className) {
     if (prevClassName !== className) {
+      const storedPanelVisible =
+        window.localStorage?.getItem(AGGREGATION_PANEL_VISIBLE) === 'true';
+      const hasAggregation =
+        this.props.classwiseCloudFunctions?.[
+          `${this.props.app.applicationId}${this.props.appName}`
+        ]?.[className];
       this.setState({
         prevClassName: className,
-        isPanelVisible: false,
+        isPanelVisible: storedPanelVisible && !!hasAggregation,
         selectedObjectId: undefined,
       });
       this.props.setAggregationPanelData({});
@@ -309,6 +405,21 @@ export default class DataBrowser extends React.Component {
       return;
     }
     if (e.keyCode === 67 && (e.ctrlKey || e.metaKey)) {
+      // Check for text selection FIRST
+      const selection = window.getSelection();
+      const selectedText = selection ? selection.toString() : '';
+
+      // If there's text selected, check if we're in the aggregation panel
+      if (selectedText.length > 0) {
+        const target = e.target;
+        const isWithinPanel = this.aggregationPanelRef?.current && this.aggregationPanelRef.current.contains(target);
+
+        if (isWithinPanel) {
+          // Let the browser handle the copy operation for selected text
+          return;
+        }
+      }
+
       // check if there is multiple selected cells
       const { rowStart, rowEnd, colStart, colEnd } = this.state.selectedCells;
       if (rowStart !== -1 && rowEnd !== -1 && colStart !== -1 && colEnd !== -1) {
@@ -319,14 +430,16 @@ export default class DataBrowser extends React.Component {
 
           for (let colIndex = colStart; colIndex <= colEnd; colIndex++) {
             const field = this.state.order[colIndex].name;
-            const value = field === 'objectId'
-              ? this.props.data[rowIndex].id
-              : this.props.data[rowIndex].attributes[field];
+            const type = field === 'objectId' ? 'String' : this.props.columns[field].type;
+            const value =
+              field === 'objectId'
+                ? this.props.data[rowIndex].id
+                : this.props.data[rowIndex].attributes[field];
 
             if (typeof value === 'number' && !isNaN(value)) {
               rowData.push(String(value));
             } else {
-              rowData.push(value || '');
+              rowData.push(formatValueForCopy(value, type));
             }
           }
 
@@ -391,7 +504,7 @@ export default class DataBrowser extends React.Component {
 
     switch (e.keyCode) {
       case 8:
-      case 46:
+      case 46: {
         // Backspace or Delete
         const colName = this.state.order[this.state.current.col].name;
         const col = this.props.columns[colName];
@@ -400,7 +513,8 @@ export default class DataBrowser extends React.Component {
         }
         e.preventDefault();
         break;
-      case 37:
+      }
+      case 37: {
         // Left - standalone (move to the next visible column on the left)
         // or with ctrl/meta (excel style - move to the first visible column)
 
@@ -419,30 +533,32 @@ export default class DataBrowser extends React.Component {
         });
         e.preventDefault();
         break;
-      case 38:
+      }
+      case 38: {
         // Up - standalone (move to the previous row)
         // or with ctrl/meta (excel style - move to the first row)
-        let prevObjectID = this.state.selectedObjectId;
+        const prevObjectID = this.state.selectedObjectId;
+        const newRow = e.ctrlKey || e.metaKey ? 0 : Math.max(this.state.current.row - 1, 0);
         this.setState({
           current: {
-            row: e.ctrlKey || e.metaKey ? 0 : Math.max(this.state.current.row - 1, 0),
+            row: newRow,
             col: this.state.current.col,
           },
         });
-        this.setState({
-          selectedObjectId: this.props.data[this.state.current.row].id,
-          showAggregatedData: true,
-        });
-        if (prevObjectID !== this.state.selectedObjectId && this.state.isPanelVisible) {
-          this.props.callCloudFunction(
-            this.state.selectedObjectId,
+        const newObjectId = this.props.data[newRow].id;
+        this.setSelectedObjectId(newObjectId);
+        this.setState({ showAggregatedData: true });
+        if (prevObjectID !== newObjectId && this.state.isPanelVisible) {
+          this.handleCallCloudFunction(
+            newObjectId,
             this.props.className,
             this.props.app.applicationId
           );
         }
         e.preventDefault();
         break;
-      case 39:
+      }
+      case 39: {
         // Right - standalone (move to the next visible column on the right)
         // or with ctrl/meta (excel style - move to the last visible column)
         this.setState({
@@ -460,27 +576,28 @@ export default class DataBrowser extends React.Component {
         });
         e.preventDefault();
         break;
-      case 40:
+      }
+      case 40: {
         // Down - standalone (move to the next row)
         // or with ctrl/meta (excel style - move to the last row)
-        prevObjectID = this.state.selectedObjectId;
+        const prevObjectID = this.state.selectedObjectId;
+        const newRow =
+          e.ctrlKey || e.metaKey
+            ? this.props.data.length - 1
+            : Math.min(this.state.current.row + 1, this.props.data.length - 1);
         this.setState({
           current: {
-            row:
-              e.ctrlKey || e.metaKey
-                ? this.props.data.length - 1
-                : Math.min(this.state.current.row + 1, this.props.data.length - 1),
+            row: newRow,
             col: this.state.current.col,
           },
         });
 
-        this.setState({
-          selectedObjectId: this.props.data[this.state.current.row].id,
-          showAggregatedData: true,
-        });
-        if (prevObjectID !== this.state.selectedObjectId && this.state.isPanelVisible) {
-          this.props.callCloudFunction(
-            this.state.selectedObjectId,
+        const newObjectIdDown = this.props.data[newRow].id;
+        this.setSelectedObjectId(newObjectIdDown);
+        this.setState({ showAggregatedData: true });
+        if (prevObjectID !== newObjectIdDown && this.state.isPanelVisible) {
+          this.handleCallCloudFunction(
+            newObjectIdDown,
             this.props.className,
             this.props.app.applicationId
           );
@@ -488,7 +605,8 @@ export default class DataBrowser extends React.Component {
 
         e.preventDefault();
         break;
-      case 67: // C
+      }
+      case 67: { // C
         if ((e.ctrlKey || e.metaKey) && this.state.copyableValue !== undefined) {
           copy(this.state.copyableValue); // Copies current cell value to clipboard
           if (this.props.showNote) {
@@ -497,7 +615,8 @@ export default class DataBrowser extends React.Component {
           e.preventDefault();
         }
         break;
-      case 32: // Space
+      }
+      case 32: { // Space
         // Only handle space if not editing and there's a current row selected
         if (!this.state.editing && this.state.current?.row >= 0) {
           const rowId = this.props.data[this.state.current.row].id;
@@ -506,12 +625,14 @@ export default class DataBrowser extends React.Component {
           e.preventDefault();
         }
         break;
-      case 13: // Enter (enable editing)
+      }
+      case 13: { // Enter (enable editing)
         if (!this.state.editing && this.state.current) {
           this.setEditing(true);
           e.preventDefault();
         }
         break;
+      }
     }
   }
 
@@ -557,12 +678,144 @@ export default class DataBrowser extends React.Component {
 
   setSelectedObjectId(selectedObjectId) {
     if (this.state.selectedObjectId !== selectedObjectId) {
-      this.setState({ selectedObjectId });
+      const index = this.props.data?.findIndex(obj => obj.id === selectedObjectId);
+      this.setState(
+        prevState => {
+          const history = [...prevState.selectionHistory];
+          if (index !== undefined && index > -1) {
+            history.push(index);
+          }
+          if (history.length > 3) {
+            history.shift();
+          }
+          return { selectedObjectId, selectionHistory: history };
+        },
+        () => this.handlePrefetch()
+      );
     }
   }
 
   setContextMenu(contextMenuX, contextMenuY, contextMenuItems) {
     this.setState({ contextMenuX, contextMenuY, contextMenuItems });
+  }
+
+  freezeColumns(index) {
+    this.setState({ frozenColumnIndex: index });
+  }
+
+  unfreezeColumns() {
+    this.setState({ frozenColumnIndex: -1 });
+  }
+
+  setShowRowNumber(show) {
+    this.setState({ showRowNumber: show });
+    window.localStorage?.setItem(BROWSER_SHOW_ROW_NUMBER, show);
+  }
+
+  toggleScrollToTop() {
+    this.setState(prevState => {
+      const newScrollToTop = !prevState.scrollToTop;
+      window.localStorage?.setItem(BROWSER_SCROLL_TO_TOP, newScrollToTop);
+      return { scrollToTop: newScrollToTop };
+    });
+  }
+
+  getPrefetchSettings() {
+    const config =
+      this.props.classwiseCloudFunctions?.[
+        `${this.props.app.applicationId}${this.props.appName}`
+      ]?.[this.props.className]?.[0];
+    return {
+      prefetchObjects: config?.prefetchObjects || 0,
+      prefetchStale: config?.prefetchStale || 0,
+    };
+  }
+
+  handlePrefetch() {
+    const { prefetchObjects, prefetchStale } = this.getPrefetchSettings();
+    if (!prefetchObjects) {
+      return;
+    }
+
+    const cache = { ...this.state.prefetchCache };
+    if (prefetchStale) {
+      const now = Date.now();
+      Object.keys(cache).forEach(key => {
+        if ((now - cache[key].timestamp) / 1000 >= prefetchStale) {
+          delete cache[key];
+        }
+      });
+    }
+    if (Object.keys(cache).length !== Object.keys(this.state.prefetchCache).length) {
+      this.setState({ prefetchCache: cache });
+    }
+
+    const history = this.state.selectionHistory;
+    if (history.length < 3) {
+      return;
+    }
+    const [a, b, c] = history.slice(-3);
+    if (a + 1 === b && b + 1 === c) {
+      for (
+        let i = 1;
+        i <= prefetchObjects && c + i < this.props.data.length;
+        i++
+      ) {
+        const objId = this.props.data[c + i].id;
+        if (!cache[objId]) {
+          this.prefetchObject(objId);
+        }
+      }
+    }
+  }
+
+  prefetchObject(objectId) {
+    const { className, app } = this.props;
+    const cloudCodeFunction =
+      this.props.classwiseCloudFunctions?.[
+        `${app.applicationId}${this.props.appName}`
+      ]?.[className]?.[0]?.cloudCodeFunction;
+    if (!cloudCodeFunction) {
+      return;
+    }
+    const params = {
+      object: Parse.Object.extend(className)
+        .createWithoutData(objectId)
+        .toPointer(),
+    };
+    const options = { useMasterKey: true };
+    Parse.Cloud.run(cloudCodeFunction, params, options).then(result => {
+      this.setState(prev => ({
+        prefetchCache: {
+          ...prev.prefetchCache,
+          [objectId]: { data: result, timestamp: Date.now() },
+        },
+      }));
+    }).catch(error => {
+      console.error(`Failed to prefetch object ${objectId}:`, error);
+    });
+  }
+
+  handleCallCloudFunction(objectId, className, appId) {
+    const { prefetchCache } = this.state;
+    const { prefetchStale } = this.getPrefetchSettings();
+    const cached = prefetchCache[objectId];
+    if (
+      cached &&
+      (!prefetchStale || (Date.now() - cached.timestamp) / 1000 < prefetchStale)
+    ) {
+      this.props.setAggregationPanelData(cached.data);
+      this.props.setLoadingInfoPanel(false);
+    } else {
+      if (cached) {
+        this.setState(prev => {
+          const n = { ...prev.prefetchCache };
+          delete n[objectId];
+          return { prefetchCache: n };
+        });
+      }
+      this.props.callCloudFunction(objectId, className, appId);
+    }
   }
 
   handleColumnsOrder(order, shouldReload) {
@@ -571,9 +824,25 @@ export default class DataBrowser extends React.Component {
     });
   }
 
-  handleCellClick(event, row, col) {
+  handleCellClick(event, row, col, objectId) {
     const { firstSelectedCell } = this.state;
     const clickedCellKey = `${row}-${col}`;
+
+    if (this.state.selectedObjectId !== objectId) {
+      this.setShowAggregatedData(true);
+      this.setSelectedObjectId(objectId);
+      if (
+        objectId &&
+        this.state.isPanelVisible &&
+        ((event.shiftKey && !firstSelectedCell) || !event.shiftKey)
+      ) {
+        this.handleCallCloudFunction(
+          objectId,
+          this.props.className,
+          this.props.app.applicationId
+        );
+      }
+    }
 
     if (event.shiftKey && firstSelectedCell) {
       const [firstRow, firstCol] = firstSelectedCell.split('-').map(Number);
@@ -666,7 +935,9 @@ export default class DataBrowser extends React.Component {
         firstSelectedCell: clickedCellKey,
       });
     }
-  }  render() {
+  }
+
+  render() {
     const {
       className,
       count,
@@ -695,8 +966,11 @@ export default class DataBrowser extends React.Component {
             setCopyableValue={this.setCopyableValue}
             selectedObjectId={this.state.selectedObjectId}
             setSelectedObjectId={this.setSelectedObjectId}
-            callCloudFunction={this.props.callCloudFunction}
+            callCloudFunction={this.handleCallCloudFunction}
             setContextMenu={this.setContextMenu}
+            freezeIndex={this.state.frozenColumnIndex}
+            freezeColumns={this.freezeColumns}
+            unfreezeColumns={this.unfreezeColumns}
             onFilterChange={this.props.onFilterChange}
             onFilterSave={this.props.onFilterSave}
             selectedCells={this.state.selectedCells}
@@ -705,6 +979,10 @@ export default class DataBrowser extends React.Component {
             panelWidth={this.state.panelWidth}
             isResizing={this.state.isResizing}
             setShowAggregatedData={this.setShowAggregatedData}
+            showRowNumber={this.state.showRowNumber}
+            setShowRowNumber={this.setShowRowNumber}
+            skip={this.props.skip}
+            limit={this.props.limit}
             firstSelectedCell={this.state.firstSelectedCell}
             {...other}
           />
@@ -720,7 +998,10 @@ export default class DataBrowser extends React.Component {
               resizeHandles={['w']}
               className={styles.resizablePanel}
             >
-              <div className={styles.aggregationPanelContainer}>
+              <div
+                className={styles.aggregationPanelContainer}
+                ref={this.aggregationPanelRef}
+              >
                 <AggregationPanel
                   data={this.props.AggregationPanelData}
                   isLoadingCloudFunction={this.props.isLoadingCloudFunction}
@@ -790,6 +1071,8 @@ export default class DataBrowser extends React.Component {
           isChartPanelVisible={this.state.isChartPanelVisible}
           appId={this.props.app.applicationId}
           appName={this.props.appName}
+          scrollToTop={this.state.scrollToTop}
+          toggleScrollToTop={this.toggleScrollToTop}
           {...other}
         />
 

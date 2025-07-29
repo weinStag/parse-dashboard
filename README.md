@@ -43,6 +43,7 @@ Parse Dashboard is a standalone dashboard for managing your [Parse Server](https
     - [Custom order in the filter popup](#custom-order-in-the-filter-popup)
     - [Persistent Filters](#persistent-filters)
     - [Scripts](#scripts)
+    - [Resource Cache](#resource-cache)
 - [Running as Express Middleware](#running-as-express-middleware)
 - [Deploying Parse Dashboard](#deploying-parse-dashboard)
   - [Preparing for Deployment](#preparing-for-deployment)
@@ -61,19 +62,30 @@ Parse Dashboard is a standalone dashboard for managing your [Parse Server](https
   - [Data Browser](#data-browser)
     - [Filters](#filters)
     - [Info Panel](#info-panel)
-      - [Segments](#segments)
-      - [Text Item](#text-item)
-      - [Key-Value Item](#key-value-item)
-      - [Table Item](#table-item)
-      - [Image Item](#image-item)
-      - [Video Item](#video-item)
-      - [Audio Item](#audio-item)
-      - [Button Item](#button-item)
-      - [Panel Item](#panel-item)
+      - [Response](#response)
+        - [Segments](#segments)
+        - [Text Item](#text-item)
+        - [Key-Value Item](#key-value-item)
+        - [Table Item](#table-item)
+        - [Image Item](#image-item)
+        - [Video Item](#video-item)
+        - [Audio Item](#audio-item)
+        - [Button Item](#button-item)
+        - [Panel Item](#panel-item)
+      - [Prefetching](#prefetching)
+    - [Freeze Columns](#freeze-columns)
   - [Browse as User](#browse-as-user)
   - [Change Pointer Key](#change-pointer-key)
     - [Limitations](#limitations)
   - [CSV Export](#csv-export)
+  - [Views](#views)
+    - [Data Sources](#data-sources)
+      - [Aggregation Pipeline](#aggregation-pipeline)
+      - [Cloud Function](#cloud-function)
+    - [View Table](#view-table)
+      - [Pointer](#pointer)
+      - [Link](#link)
+      - [Image](#image)
 - [Contributing](#contributing)
 
 # Getting Started
@@ -138,6 +150,8 @@ Parse Dashboard is continuously tested with the most recent releases of Node.js 
 | `infoPanel[*].title`                   | String              | no       | -       | `User Details`                                   | The panel title.                                                                                                                                                                                                                      |
 | `infoPanel[*].classes`                 | Array&lt;String&gt; | no       | -       | `["_User"]`                                      | The classes for which the info panel should be displayed.                                                                                                                                                                             |
 | `infoPanel[*].cloudCodeFunction`       | String              | no       | -       | `getUserDetails`                                 | The Cloud Code Function which received the selected object in the data browser and returns the response to be displayed in the info panel.                                                                                            |
+| `infoPanel[*].prefetchObjects`         | Number              | yes      | `0`     | `2`                                              | Number of next rows to prefetch when browsing sequential rows. For example, `2` means the next 2 rows will be fetched in advance.                                                                                                     |
+| `infoPanel[*].prefetchStale`           | Number              | yes      | `0`     | `10`                                             | Duration in seconds after which prefetched data is discarded as stale.                                                                                                                                                                |
 | `apps.scripts`                         | Array&lt;Object&gt; | yes      | `[]`    | `[{ ... }, { ... }]`                             | The scripts that can be executed for that app.                                                                                                                                                                                        |
 | `apps.scripts.title`                   | String              | no       | -       | `'Delete User'`                                  | The title that will be displayed in the data browser context menu and the script run confirmation dialog.                                                                                                                             |
 | `apps.scripts.classes`                 | Array&lt;String&gt; | no       | -       | `['_User']`                                      | The classes of Parse Objects for which the scripts can be executed.                                                                                                                                                                   |
@@ -443,7 +457,6 @@ You can also specify custom fields with the `scrips` option:
 
 ```
 
-
 Next, define the Cloud Function in Parse Server that will be called. The object that has been selected in the data browser will be made available as a request parameter:
 
 ```js
@@ -503,6 +516,37 @@ Parse.Cloud.define('deleteAccount', async (req) => {
 ```
 
 </details>
+
+### Resource Cache
+
+Parse Dashboard can cache its resources such as bundles in the browser, so that opening the dashboard in another tab does not reload the dashboard resources from the server but from the local browser cache. Caching only starts after login in the dashboard.
+
+| Parameter             | Type    | Optional | Default | Example | Description                                                                                                                             |
+|-----------------------|---------|----------|---------|---------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `enableResourceCache` | Boolean | yes      | `false` | `true`  | Enables caching of dashboard resources in the browser for faster dashboard loading in additional browser tabs. |
+
+
+Example configuration:
+
+```javascript
+const dashboard = new ParseDashboard({
+  enableResourceCache: true,
+  apps: [
+    {
+      serverURL: 'http://localhost:1337/parse',
+      appId: 'myAppId',
+      masterKey: 'myMasterKey',
+      appName: 'MyApp'
+    }
+  ]
+});
+```
+
+> [!Warning]
+> This feature can make it more difficult to push dashboard updates to users. Enabling the resource cache will start a browser service worker that caches dashboard resources locally only once. As long as the service worker is running, it will prevent loading any dashboard updates from the server, even if the user reloads the browser tab. The service worker is automatically stopped, once the last dashboard browser tab is closed. On the opening of the first dashboard browser tab, a new service worker is started and the dashboard resources are loaded from the server.
+
+> [!Note]
+> For developers: during dashboard development, the resource cache should be disabled to ensure reloading the dashboard tab in the browser loads the new dashboard bundle with any changes you made in the source code. You can inspect the service worker in the developer tools of most browsers. For example in Google Chrome, go to *Developer Tools > Application tab > Service workers* to see whether the dashboard service worker is currently running and to debug it.
 
 # Running as Express Middleware
 
@@ -871,7 +915,9 @@ The following example dashboard configuration shows an info panel for the `_User
       {
         "title": "User Details",
         "classes": ["_User"],
-        "cloudCodeFunction": "getUserDetails"
+        "cloudCodeFunction": "getUserDetails",
+        "prefetchObjects": 2,
+        "prefetchStale": 10
       }
     ]
   }
@@ -880,7 +926,9 @@ The following example dashboard configuration shows an info panel for the `_User
 
 The Cloud Code Function receives the selected object in the payload and returns a response that can include various items.
 
-#### Segments
+#### Response
+
+##### Segments
 
 The info panel can contain multiple segments to display different groups of information.
 
@@ -916,7 +964,7 @@ Example:
 
 The items array can include various types of content such as text, key-value pairs, tables, images, videos, audios, and buttons. Each type offers a different way to display information within the info panel, allowing for a customizable and rich user experience. Below is a detailed explanation of each type.
 
-#### Text Item
+##### Text Item
 
 A simple text field.
 
@@ -936,7 +984,7 @@ Example:
 }
 ```
 
-#### Key-Value Item
+##### Key-Value Item
 
 A text item that consists of a key and a value. The value can optionally be linked to a URL.
 
@@ -947,6 +995,7 @@ A text item that consists of a key and a value. The value can optionally be link
 | `value`         | String  | -           | No       | The value text to display.                                                                                                                                                                              |
 | `url`           | String  | `undefined` | Yes      | The URL that will be opened in a new browser tab when clicking on the value text. It can be set to an absolute URL or a relative URL in which case the base URL is `<PROTOCOL>://<HOST>/<MOUNT_PATH>/`. |
 | `isRelativeUrl` | Boolean | `false`     | Yes      | Set this to `true` when linking to another dashboard page, in which case the base URL for the relative URL will be `<PROTOCOL>://<HOST>/<MOUNT_PATH>/apps/<APP_NAME>/`.                                 |
+| `values`        | Array   | -           | Yes      | Additional values to display after `value`. Each item is an object with `value`, optional `url` and `isRelativeUrl`.                                                                                    |
 | `style`         | Object  | -           | Yes      | The CSS style definition.                                                                                                                                                                               |
 
 Examples:
@@ -979,6 +1028,17 @@ Examples:
 }
 ```
 
+```json
+{
+  "type": "keyValue",
+  "key": "Purchase Value",
+  "value": "123",
+  "url": "browser/Purchase",
+  "isRelativeUrl": true,
+  "values": [{ "value": "456" }]
+}
+```
+
 To navigate to a specific object using a relative URL, the query parameters must be URL encoded:
 
 ```js
@@ -995,7 +1055,7 @@ const item = {
 }
 ```
 
-#### Table Item
+##### Table Item
 
 A table with columns and rows to display data in a structured format.
 
@@ -1037,7 +1097,7 @@ Example:
 }
 ```
 
-#### Image Item
+##### Image Item
 
 An image to be displayed in the panel.
 
@@ -1057,7 +1117,7 @@ Example:
 }
 ```
 
-#### Video Item
+##### Video Item
 
 A video to be displayed in the panel.
 
@@ -1077,7 +1137,7 @@ Example:
 }
 ```
 
-#### Audio Item
+##### Audio Item
 
 An audio file to be played in the panel.
 
@@ -1097,7 +1157,7 @@ Example:
 }
 ```
 
-#### Button Item
+##### Button Item
 
 A button that triggers an action when clicked.
 
@@ -1132,7 +1192,7 @@ Example:
 }
 ```
 
-#### Panel Item
+##### Panel Item
 
 A sub-panel whose data is loaded on-demand by expanding the item.
 
@@ -1153,6 +1213,23 @@ Example:
   "style": { "backgroundColor": "lightGray" },
 }
 ```
+
+#### Prefetching
+
+To reduce the time for info panel data to appear, data can be prefetched.
+
+| Parameter                      | Type   | Optional | Default | Example | Description                                                                                                                       |
+|--------------------------------|--------|----------|---------|---------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `infoPanel[*].prefetchObjects` | Number | yes      | `0`     | `2`     | Number of next rows to prefetch when browsing sequential rows. For example, `2` means the next 2 rows will be fetched in advance. |
+| `infoPanel[*].prefetchStale`   | Number | yes      | `0`     | `10`    | Duration in seconds after which prefetched data is discarded as stale.                                                            |
+
+Prefetching is particularly useful when navigating through lists of objects. To optimize performance and avoid unnecessary data loading, prefetching is triggered only after the user has moved through 3 consecutive rows using the keyboard down-arrow key or by mouse click.
+
+### Freeze Columns
+
+▶️ *Core > Browser > Freeze column*
+
+Right-click on a table column header to freeze columns from the left up to the clicked column in the data browser. When scrolling horizontally, the frozen columns remain visible while the other columns scroll underneath.
 
 ## Browse as User
 
@@ -1182,6 +1259,128 @@ This feature allows you to change how a pointer is represented in the browser. B
 This feature will take either selected rows or all rows of an individual class and saves them to a CSV file, which is then downloaded. CSV headers are added to the top of the file matching the column names.
 
 > ⚠️ There is currently a 10,000 row limit when exporting all data. If more than 10,000 rows are present in the class, the CSV file will only contain 10,000 rows.
+
+## Views
+
+▶️ *Core > Views*
+
+Views are saved queries that display data in a table format. Saved views appear in the sidebar, where you can select, edit, or delete them. Optionally you can enable the object counter to show in the sidebar how many items match the view.
+
+> [!Caution]
+> Values are generally rendered without sanitization in the resulting data table. If rendered values come from user input or untrusted data, make sure to remove potentially dangerous HTML or JavaScript, to prevent an attacker from injecting malicious code, to exploit vulnerabilities like Cross-Site Scripting (XSS).
+
+### Data Sources
+
+Views can pull their data from the following data sources.
+
+#### Aggregation Pipeline
+  
+Display aggregated data from your classes using a MongoDB aggregation pipeline. Create a view by selecting a class and defining an aggregation pipeline.
+
+#### Cloud Function
+  
+Display data returned by a Parse Cloud Function. Create a view specifying a Cloud Function that returns an array of objects. Cloud Functions enable custom business logic, computed fields, and complex data transformations.
+
+Cloud Function views can prompt users for text input and/or file upload when opened. Enable "Require text input" or "Require file upload" checkboxes when creating the view. The user provided data will then be available in the Cloud Function as parameters.
+
+Cloud Function example:
+
+```js
+Parse.Cloud.define("myViewFunction", request => {
+  const text = request.params.text;
+  const fileData = request.params.fileData;
+  return processDataWithTextAndFile(text, fileData);
+});
+```
+
+> [!Note]
+> Text and file data are ephemeral and only available to the Cloud Function during that request. Files are base64 encoded, increasing the data during transfer by ~33%.
+
+### View Table
+
+When designing the aggregation pipeline, consider that some values are rendered specially in the output table.
+
+#### Pointer
+
+Parse Object pointers are automatically displayed as links to the target object.
+
+Example:
+
+```json
+{ "__type": "Pointer", "className": "_User", "objectId": "xWMyZ4YEGZ" }
+```
+
+#### Link
+
+Links are rendered as hyperlinks that open in a new browser tab.
+
+Example:
+
+```json
+{
+  "__type": "Link",
+  "url": "https://example.com",
+  "text": "Link"
+}
+```
+
+Set `isRelativeUrl: true` when linking to another dashboard page, in which case the base URL for the relative URL will be `<PROTOCOL>://<HOST>/<MOUNT_PATH>/apps/<APP_NAME>/`. The key `isRelativeUrl` is optional and `false` by default.
+
+Example:
+
+```json
+{
+  "__type": "Link",
+  "url": "browser/_Installation",
+  "isRelativeUrl": true,
+  "text": "Link"
+}
+```
+
+A query part of the URL can be easily added using the `urlQuery` key which will automatically escape the query string.
+
+Example:
+
+```json
+{
+  "__type": "Link",
+  "url": "browser/_Installation",
+  "urlQuery": "filters=[{\"field\":\"objectId\",\"constraint\":\"eq\",\"compareTo\":\"xWMyZ4YEGZ\",\"class\":\"_Installation\"}]",
+  "isRelativeUrl": true,
+  "text": "Link"
+}
+```
+
+In the example above, the query string will be escaped and added to the url, resulting in the complete URL:
+
+```js
+"browser/_Installation?filters=%5B%7B%22field%22%3A%22objectId%22%2C%22constraint%22%3A%22eq%22%2C%22compareTo%22%3A%22xWMyZ4YEGZ%22%2C%22class%22%3A%22_Installation%22%7D%5D"
+```
+
+> [!Tip]
+> For guidance on how to create the URL query for a dashboard data browser filter, open the data browser and set the filter. Then copy the browser URL and unescape it. The query constraints in `?filters=[...]` will give you an idea of the constraint syntax.
+
+> [!Note]
+> For security reasons, the link `<a>` tag contains the `rel="noreferrer"` attribute, which prevents the target website to know the referring website which in this case is the Parse Dashboard URL. That attribute is widely supported across modern browsers, but if in doubt check your browser's compatibility.
+
+#### Image
+
+Images are rendered directly in the output table with an `<img>` tag. The content mode is always "scale to fit", meaning that if the image file is 100x50px and the specified dimensions are 50x50px, it would display as 50x25px, since it's scaled maintaining aspect ratio.
+
+Example:
+
+```json
+{
+  "__type": "Image",
+  "url": "https://example.com/image.png",
+  "width": "50",
+  "height": "50",
+  "alt": "Image"
+}
+```
+
+> [!Warning]
+> The URL will be directly invoked by the browser when trying to display the image. For security reasons, make sure you either control the full URL, including the image file name, or sanitize the URL before returning it to the dashboard. URLs containing `javascript:` or `<script` will be blocked automatically and replaced with a placeholder.
 
 # Contributing
 

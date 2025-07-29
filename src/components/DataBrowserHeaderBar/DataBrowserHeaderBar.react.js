@@ -13,6 +13,28 @@ import styles from 'components/DataBrowserHeaderBar/DataBrowserHeaderBar.scss';
 import { DndProvider } from 'react-dnd';
 
 export default class DataBrowserHeaderBar extends React.Component {
+  handleContextMenu = (index, event) => {
+    event.preventDefault();
+    const {
+      freezeIndex,
+      freezeColumns,
+      unfreezeColumns,
+      setContextMenu,
+      showRowNumber,
+      setShowRowNumber,
+    } = this.props;
+    const items = [
+      {
+        text: showRowNumber ? 'Hide row number' : 'Display row number',
+        callback: () => setShowRowNumber(!showRowNumber),
+      },
+      freezeIndex >= 0 && index <= freezeIndex
+        ? { text: 'Unfreeze column', callback: () => unfreezeColumns() }
+        : { text: 'Freeze column', callback: () => freezeColumns(index) },
+    ];
+    setContextMenu(event.pageX, event.pageY, items);
+  };
+
   render() {
     const {
       headers,
@@ -26,20 +48,46 @@ export default class DataBrowserHeaderBar extends React.Component {
       isDataLoaded,
       setSelectedObjectId,
       setCurrent,
+      stickyLefts,
+      handleLefts,
+      freezeIndex,
+      showRowNumber,
+      rowNumberWidth,
     } = this.props;
     const elements = [
-      <div key="check" className={[styles.wrap, styles.check].join(' ')}>
+      <div
+        key="check"
+        className={[styles.wrap, styles.check].join(' ')}
+        style={{ position: 'sticky', left: 0, zIndex: 11 }}
+      >
         {readonly ? null : (
           <input type="checkbox" checked={selected} onChange={e => selectAll(e.target.checked)} />
         )}
       </div>,
     ];
 
+    if (showRowNumber) {
+      elements.push(
+        <div
+          key="rowNumber"
+          className={[styles.wrap, styles.rowNumber].join(' ')}
+          style={{ position: 'sticky', left: 30, zIndex: 11, width: rowNumberWidth }}
+        >
+          #
+        </div>
+      );
+    }
+
     headers.forEach(({ width, name, type, targetClass, order, visible, preventSort }, i) => {
       if (!visible) {
         return;
       }
       const wrapStyle = { width };
+      if (freezeIndex >= 0 && typeof stickyLefts[i] !== 'undefined' && i <= freezeIndex) {
+        wrapStyle.position = 'sticky';
+        wrapStyle.left = stickyLefts[i];
+        wrapStyle.zIndex = 11;
+      }
       if (i % 2) {
         wrapStyle.background = '#726F85';
       } else {
@@ -63,7 +111,13 @@ export default class DataBrowserHeaderBar extends React.Component {
       }
 
       elements.push(
-        <div onClick={onClick} key={'header' + i} className={className} style={wrapStyle}>
+        <div
+          onClick={onClick}
+          onContextMenu={e => this.handleContextMenu(i, e)}
+          key={'header' + i}
+          className={className}
+          style={wrapStyle}
+        >
           <DataBrowserHeader
             name={name}
             type={type}
@@ -74,8 +128,25 @@ export default class DataBrowserHeaderBar extends React.Component {
           />
         </div>
       );
+      const handleStyle = {};
+      if (freezeIndex >= 0 && typeof handleLefts[i] !== 'undefined' && i <= freezeIndex) {
+        handleStyle.position = 'sticky';
+        handleStyle.left = handleLefts[i];
+        handleStyle.zIndex = 11;
+        if (i === freezeIndex) {
+          handleStyle.marginRight = 0;
+          handleStyle.width = 4;
+        } else {
+          handleStyle.background = wrapStyle.background;
+        }
+      }
       elements.push(
-        <DragHandle key={'handle' + i} className={styles.handle} onDrag={onResize.bind(null, i)} />
+        <DragHandle
+          key={'handle' + i}
+          className={styles.handle}
+          onDrag={onResize.bind(null, i)}
+          style={handleStyle}
+        />
       );
     });
 

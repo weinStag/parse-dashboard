@@ -118,13 +118,32 @@ export default class BrowserTable extends React.Component {
       preventSort,
       required,
     }));
+
+    const stickyLefts = [];
+    const handleLefts = [];
+    const maxRowNumber =
+      this.props.skip + (this.props.data ? this.props.data.length : this.props.limit);
+    const rowNumberWidth = this.props.showRowNumber
+      ? maxRowNumber.toLocaleString().length * 8 + 16
+      : 0;
+    if (typeof this.props.freezeIndex === 'number' && this.props.freezeIndex >= 0) {
+      let left = 30 + rowNumberWidth;
+      headers.forEach((h, i) => {
+        stickyLefts[i] = left;
+        handleLefts[i] = left + h.width;
+        if (h.visible) {
+          left += h.width;
+        }
+      });
+    }
     let editor = null;
     let table = <div ref={this.tableRef} />;
     if (this.props.data) {
-      const rowWidth = this.props.order.reduce(
-        (rowWidth, { visible, width }) => (visible ? rowWidth + width : rowWidth),
-        this.props.onAddRow ? 210 : 0
-      );
+      const rowWidth =
+        this.props.order.reduce(
+          (rw, { visible, width }) => (visible ? rw + width : rw),
+          this.props.onAddRow ? 210 : 0
+        ) + rowNumberWidth;
       let editCloneRows;
       if (this.props.editCloneRows) {
         editCloneRows = (
@@ -159,6 +178,9 @@ export default class BrowserTable extends React.Component {
                     row={index}
                     rowValue={this.props.data[index]}
                     rowWidth={rowWidth}
+                    showRowNumber={this.props.showRowNumber}
+                    rowNumberWidth={rowNumberWidth}
+                    skip={this.props.skip}
                     selection={this.props.selection}
                     selectRow={this.props.selectRow}
                     setCurrent={this.props.setCurrent}
@@ -170,6 +192,8 @@ export default class BrowserTable extends React.Component {
                     callCloudFunction={this.props.callCloudFunction}
                     isPanelVisible={this.props.isPanelVisible}
                     setContextMenu={this.props.setContextMenu}
+                    stickyLefts={stickyLefts}
+                    freezeIndex={this.props.freezeIndex}
                     onEditSelectedRow={this.props.onEditSelectedRow}
                     markRequiredFieldRow={this.props.markRequiredFieldRow}
                     showNote={this.props.showNote}
@@ -240,6 +264,9 @@ export default class BrowserTable extends React.Component {
               readOnlyFields={READ_ONLY}
               row={-1}
               rowWidth={rowWidth}
+              showRowNumber={this.props.showRowNumber}
+              rowNumberWidth={rowNumberWidth}
+              skip={this.props.skip}
               selection={this.props.selection}
               selectRow={this.props.selectRow}
               setCurrent={this.props.setCurrent}
@@ -251,6 +278,8 @@ export default class BrowserTable extends React.Component {
               callCloudFunction={this.props.callCloudFunction}
               isPanelVisible={this.props.isPanelVisible}
               setContextMenu={this.props.setContextMenu}
+              stickyLefts={stickyLefts}
+              freezeIndex={this.props.freezeIndex}
               onEditSelectedRow={this.props.onEditSelectedRow}
               markRequiredFieldRow={this.props.markRequiredFieldRow}
               showNote={this.props.showNote}
@@ -332,6 +361,9 @@ export default class BrowserTable extends React.Component {
             row={i}
             rowValue={this.props.data[i]}
             rowWidth={rowWidth}
+            showRowNumber={this.props.showRowNumber}
+            rowNumberWidth={rowNumberWidth}
+            skip={this.props.skip}
             selection={this.props.selection}
             selectRow={this.props.selectRow}
             setCurrent={this.props.setCurrent}
@@ -342,6 +374,8 @@ export default class BrowserTable extends React.Component {
             setSelectedObjectId={this.props.setSelectedObjectId}
             isPanelVisible={this.props.isPanelVisible}
             setContextMenu={this.props.setContextMenu}
+            stickyLefts={stickyLefts}
+            freezeIndex={this.props.freezeIndex}
             onEditSelectedRow={this.props.onEditSelectedRow}
             showNote={this.props.showNote}
             onRefresh={this.props.onRefresh}
@@ -428,7 +462,7 @@ export default class BrowserTable extends React.Component {
             //for data rows & new row when there are edit clone rows
             wrapTop += 2 * ROW_HEIGHT * this.props.editCloneRows.length;
           }
-          let wrapLeft = 30;
+          let wrapLeft = 30 + rowNumberWidth;
           for (let i = 0; i < this.props.current.col; i++) {
             const column = this.props.order[i];
             wrapLeft += column.visible ? column.width : 0;
@@ -540,7 +574,7 @@ export default class BrowserTable extends React.Component {
         id="browser-table"
         style={{
           right: rightValue,
-          'overflowX': this.props.isResizing ? 'hidden' : 'auto',
+          overflowX: this.props.isResizing ? 'hidden' : 'auto',
         }}
       >
         <DataBrowserHeaderBar
@@ -554,7 +588,15 @@ export default class BrowserTable extends React.Component {
             this.props.data.forEach(({ id }) => this.props.selectRow(id, checked))
           }
           headers={headers}
+          stickyLefts={stickyLefts}
+          handleLefts={handleLefts}
+          freezeIndex={this.props.freezeIndex}
+          freezeColumns={this.props.freezeColumns}
+          unfreezeColumns={this.props.unfreezeColumns}
           updateOrdering={this.props.updateOrdering}
+          showRowNumber={this.props.showRowNumber}
+          setShowRowNumber={this.props.setShowRowNumber}
+          rowNumberWidth={rowNumberWidth}
           readonly={!!this.props.relation || !!this.props.isUnique}
           handleDragDrop={this.props.handleHeaderDragDrop}
           onResize={this.props.handleResize}
@@ -563,6 +605,7 @@ export default class BrowserTable extends React.Component {
           isDataLoaded={!!this.props.data}
           setSelectedObjectId={this.props.setSelectedObjectId}
           setCurrent={this.props.setCurrent}
+          setContextMenu={this.props.setContextMenu}
         />
         {table}
       </div>

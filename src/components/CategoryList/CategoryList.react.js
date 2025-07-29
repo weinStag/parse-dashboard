@@ -6,6 +6,7 @@
  * the root directory of this source tree.
  */
 import styles from 'components/CategoryList/CategoryList.scss';
+import Icon from 'components/Icon/Icon.react';
 import { CurrentApp } from 'context/currentApp';
 import generatePath from 'lib/generatePath';
 import PropTypes from 'lib/PropTypes';
@@ -56,7 +57,14 @@ export default class CategoryList extends React.Component {
               const filterId = query.get('filterId');
               for (let i = 0; i < c.filters?.length; i++) {
                 const filter = c.filters[i];
-                if (queryFilter === filter.filter || filterId && filterId === filter.id) {
+                // Prioritize filterId matching, only fall back to content comparison if no filterId
+                if (filterId) {
+                  if (filterId === filter.id) {
+                    height += (i + 1) * 20;
+                    break;
+                  }
+                } else if (queryFilter === filter.filter) {
+                  // Legacy fallback: match by filter content when no filterId is present
                   height += (i + 1) * 20;
                   break;
                 }
@@ -112,7 +120,15 @@ export default class CategoryList extends React.Component {
               const queryFilterId = query.get('filterId');
               for (let i = 0; i < c.filters?.length; i++) {
                 const filter = c.filters[i];
-                if (queryFilter === filter.filter || queryFilterId && queryFilterId === filter.id) {
+                // Prioritize filterId matching, only fall back to content comparison if no filterId
+                if (queryFilterId) {
+                  if (queryFilterId === filter.id) {
+                    selectedFilter = i;
+                    className = '';
+                    break;
+                  }
+                } else if (queryFilter === filter.filter) {
+                  // Legacy fallback: match by filter content when no filterId is present
                   selectedFilter = i;
                   className = '';
                   break;
@@ -124,10 +140,26 @@ export default class CategoryList extends React.Component {
           return (
             <div key={id}>
               <div className={styles.link}>
-                <Link title={c.name} to={{ pathname: link }} className={className} key={id} onClick={() => this.props.classClicked()}>
-                  <span>{count}</span>
-                  <span>{c.name}</span>
+                <Link
+                  title={c.name}
+                  to={{ pathname: link }}
+                  className={className}
+                  onClick={() => this.props.classClicked()}
+                >
+                  {c.name}
                 </Link>
+                {c.onEdit && (
+                  <a
+                    className={styles.edit}
+                    onClick={e => {
+                      e.preventDefault();
+                      c.onEdit();
+                    }}
+                  >
+                    <Icon name="edit-solid" width={14} height={14} />
+                  </a>
+                )}
+                <span className={styles.count}>{count}</span>
                 {(c.filters || []).length !== 0 && (
                   <a
                     className={styles.expand}
@@ -141,9 +173,11 @@ export default class CategoryList extends React.Component {
               {this.state.openClasses.includes(id) &&
                 c.filters.map((filterData, index) => {
                   const { name, filter, id } = filterData;
-                  const url = `${this.props.linkPrefix}${c.name}?filters=${encodeURIComponent(
-                    filter
-                  )}&filterId=${id}`;
+                  // Only include filterId in URL if the filter has an ID (modern filters)
+                  // Legacy filters without ID should work with just the filter content
+                  const url = id
+                    ? `${this.props.linkPrefix}${c.name}?filters=${encodeURIComponent(filter)}&filterId=${id}`
+                    : `${this.props.linkPrefix}${c.name}?filters=${encodeURIComponent(filter)}`;
                   return (
                     <div key={index} className={styles.childLink}>
                       <Link
@@ -156,15 +190,17 @@ export default class CategoryList extends React.Component {
                       >
                         <span>{name}</span>
                       </Link>
-                      <a
-                        className={styles.close}
-                        onClick={e => {
-                          e.preventDefault();
-                          this.props.removeFilter(filterData);
-                        }}
-                      >
-                        ×
-                      </a>
+                      {this.props.onEditFilter && (
+                        <a
+                          className={styles.editFilter}
+                          onClick={e => {
+                            e.preventDefault();
+                            this.props.onEditFilter(c.name, filterData);
+                          }}
+                        >
+                          <Icon name="edit-solid" width={14} height={14} />
+                        </a>
+                      )}
                     </div>
                   );
                 })}
@@ -182,4 +218,5 @@ CategoryList.propTypes = {
   ),
   current: PropTypes.string.describe('Id of current category to be highlighted.'),
   linkPrefix: PropTypes.string.describe('Link prefix used to generate link path.'),
+  onEditFilter: PropTypes.func.describe('Callback function for editing a filter.'),
 };

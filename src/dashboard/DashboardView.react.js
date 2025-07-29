@@ -76,6 +76,11 @@ export default class DashboardView extends React.Component {
       });
     }
 
+    coreSubsections.push({
+      name: 'Views',
+      link: '/views',
+    });
+
     //webhooks requires removal of heroku link code, then it should work.
     if (
       features.hooks &&

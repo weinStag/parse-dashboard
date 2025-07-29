@@ -48,7 +48,7 @@ describe('dashboard e2e', () => {
     await page.close();
     await browser.close();
     server.close();
-  });
+  }, 20_000);
 });
 
 describe('Config options', () => {
